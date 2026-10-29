@@ -17,7 +17,7 @@ from flask import Flask, Response, abort, jsonify, request
 import startup
 import sysinfo
 from enrich import Enricher
-from knowledge import GENERIC_TITLES, KINDS, KNOWN, Explainer, classify, folder_label, made_by
+from knowledge import GENERIC_TITLES, KINDS, KNOWN, Explainer, classify, folder_label, made_by, plain_service
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOKEN = secrets.token_urlsafe(24)
@@ -277,7 +277,7 @@ def api_startup():
         title = (known or {}).get("title") or desc or e["name"]
         what = (known or {}).get("what") or (info.get("FileDescription") if info.get("FileDescription") not in (None, title) else "") \
             or (made_by(info["CompanyName"]) if info.get("CompanyName") else "No description in the file.")
-        rows.append({**e, "id": "startup:" + e["name"], "title": title, "what": what,
+        rows.append({**e, "id": "startup:" + e["name"], "title": title, "what": what, "file": os.path.basename(path) if path else "",
                      "kind": classify(lname, path, info), "company": info.get("CompanyName"),
                      "folder": folder_label(path), "exists": bool(path and os.path.isfile(path)),
                      "running": bool(path and path.lower() in running), "icon": (rich or {}).get("icon"),
@@ -307,9 +307,10 @@ def api_services():
         windows = path.lower().startswith(sysinfo.WINDIR)
         info = sysinfo.file_info(path) if path and not windows else {}
         desc = (c.get("description") or "").strip()
-        first = desc.split(". ")[0].rstrip(".") + "." if desc else "No description."
+        plain = plain_service(s["name"], s["display"], desc)
         rows.append({
-            "id": "svc:" + s["name"], "name": s["name"], "title": s["display"], "what": first, "description": desc,
+            "id": "svc:" + s["name"], "name": s["name"], "title": plain["title"], "what": plain["what"],
+            "display": s["display"], "description": desc, "plain": plain["plain"],
             "state": s["state"], "start": c.get("start", "Unknown"), "pid": s["pid"] or None,
             "runs_in": owner.get(s["pid"]) if s["pid"] else None, "path": path, "folder": folder_label(path),
             "made_by": "Microsoft (part of Windows)" if windows else (info.get("CompanyName") or "Not stated"),

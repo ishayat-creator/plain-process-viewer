@@ -11,7 +11,7 @@ const KIND_LABEL = {
 const CLOSE_LABEL = { safe: "Safe to close", care: "Close with care", keep: "Don't close", critical: "Windows needs it" };
 
 const state = {
-  view: "processes", data: null, kind: null, query: "", sort: { key: "name", dir: 1 },
+  view: "processes", data: null, kind: null, close: null, query: "", sort: { key: "name", dir: 1 },
   expanded: new Set(), collapsed: new Set(), sel: null,
   startup: null, services: null, svcFilter: "running", busy: false,
 };
@@ -62,7 +62,7 @@ function walk(nodes, fn, depth = 0) {
 
 function matches(g, q) {
   if (!q) return { hit: true, viaPart: false };
-  const own = [g.title, g.what, g.exe, KIND_LABEL[g.kind]].join(" ").toLowerCase().includes(q);
+  const own = [g.title, g.what, g.exe, KIND_LABEL[g.kind], CLOSE_LABEL[g.close]].join(" ").toLowerCase().includes(q);
   let viaPart = false;
   walk(g.parts, (n) => {
     if (!viaPart && partText(n).includes(q)) viaPart = true;
@@ -84,7 +84,7 @@ function groupRow(g, open) {
   const sel = state.sel?.type === "group" && state.sel.id === g.id ? " sel" : "";
   return `<div class="row k-${g.kind}${sel}" data-group="${esc(g.id)}" tabindex="0">
     <div class="nm"><button class="chev${g.count > 1 ? "" : " none"}${open ? " open" : ""}" aria-label="Show parts">${icon("chev")}</button>${tile(g)}
-      <div class="txt"><div class="t"><span class="tt">${esc(g.title)}</span>${flag}</div><div class="s">${sub}</div></div></div>
+      <div class="txt"><div class="t"><span class="tt">${esc(g.title)}</span>${raw(g.exe)}${flag}</div><div class="s">${sub}</div></div></div>
     <div class="cell h${cpuHeat(g.cpu)}">${fmtCpu(g.cpu)}</div>
     <div class="cell h${memHeat(g.mem)}">${fmtMem(g.mem)}</div>
     <div class="cell lft">${pill(g.close)}</div>
@@ -92,8 +92,9 @@ function groupRow(g, open) {
 }
 
 function partText(n) {
-  return [n.title, n.name, n.what, String(n.pid), (n.services || []).join(" ")].join(" ").toLowerCase();
+  return [n.title, n.name, n.what, String(n.pid), (n.services || []).map((s) => `${s.title} ${s.display}`).join(" ")].join(" ").toLowerCase();
 }
+const raw = (name) => (name ? `<span class="raw">${esc(name)}</span>` : "");
 
 function partRows(g, onlyMatches) {
   let html = "";
@@ -103,7 +104,7 @@ function partRows(g, onlyMatches) {
     const flag = n.unusual.length ? `<span class="flag">${icon("alert")}Unusual</span>` : "";
     html += `<div class="row part k-${n.kind}${sel}" data-pid="${n.pid}" data-group="${esc(g.id)}" tabindex="0">
       <div class="nm" style="padding-left:${38 + depth * 22}px">${tile(n)}
-        <div class="txt"><div class="t"><span class="tt">${esc(n.title)}</span>${flag}</div><div class="s">${esc(n.name)} · ${esc(n.what)}</div></div></div>
+        <div class="txt"><div class="t"><span class="tt">${esc(n.title)}</span>${raw(n.name)}${flag}</div><div class="s">${esc(n.what)}</div></div></div>
       <div class="cell h${cpuHeat(n.cpu)}">${fmtCpu(n.cpu)}</div>
       <div class="cell h${memHeat(n.mem)}">${fmtMem(n.mem)}</div>
       <div class="cell lft"></div>
@@ -127,13 +128,21 @@ function renderProcesses() {
   $("#checking").textContent = s.checking ? `Checking signatures and icons for ${s.checking} files…` : "";
 
   const q = state.query;
-  const visible = d.groups.map((g) => ({ g, m: matches(g, q) })).filter((x) => x.m.hit);
+  const base = d.groups.map((g) => ({ g, m: matches(g, q) })).filter((x) => x.m.hit);
+  const closeOk = (g) => !state.close || g.close === state.close;
+  const kindOk = (g) => !state.kind || g.kind === state.kind;
+  const visible = base.filter((x) => closeOk(x.g));
   const counts = {};
   visible.forEach(({ g }) => (counts[g.kind] = (counts[g.kind] || 0) + 1));
+  const closeCounts = {};
+  base.filter((x) => kindOk(x.g)).forEach(({ g }) => (closeCounts[g.close] = (closeCounts[g.close] || 0) + 1));
 
   $("#chips").innerHTML = `<button class="chip all${state.kind ? "" : " on"}" data-kind="">All apps <b>${visible.length}</b></button>` +
     d.kinds.filter((k) => counts[k.id]).map((k) =>
       `<button class="chip k-${k.id}${state.kind === k.id ? " on" : ""}" data-kind="${k.id}">${esc(k.label)} <b>${counts[k.id]}</b></button>`).join("");
+  $("#closeChips").innerHTML = `<span class="chip-label">If you close it</span>` +
+    ["safe", "care", "keep", "critical"].filter((c) => closeCounts[c] || state.close === c).map((c) =>
+      `<button class="chip c-${c}${state.close === c ? " on" : ""}" data-close="${c}">${c === "critical" ? icon("lock") : ""}${CLOSE_LABEL[c]} <b>${closeCounts[c] || 0}</b></button>`).join("");
 
   let html = "";
   for (const k of d.kinds) {
@@ -150,7 +159,7 @@ function renderProcesses() {
       if (open && g.count > 1) html += partRows(g, viaPart && !state.expanded.has(g.id));
     }
   }
-  $("#rows").innerHTML = html || `<div class="empty">Nothing matches “${esc(q)}”.</div>`;
+  $("#rows").innerHTML = html || `<div class="empty">${q ? `Nothing matches “${esc(q)}”.` : "Nothing matches these filters."}</div>`;
   updateButtons();
   if (state.sel && (state.sel.type === "group" || state.sel.type === "part")) renderDetails(false);
 }
@@ -263,12 +272,13 @@ function renderDetails(scrollTop = true) {
         ["Part of", esc(f.g.title)],
         ["File", `<span class="mono">${esc(n.name)}</span>`],
         ["Process ID", String(n.pid)],
-        ["Services", (n.services || []).map(esc).join("<br>")],
         ["Signature", sigText(n)],
         ["Lives in", pathFact(n) || "Hidden by Windows"],
         ["Name from", esc(n.source)],
         ["Using now", `${fmtCpu(n.cpu)} CPU · ${fmtMem(n.mem)} memory`],
       ])}</div>` +
+      ((n.services || []).length ? `<div class="d-block"><span class="d-label">Windows helpers inside</span><div class="svc-list">${n.services.map((v) =>
+        `<div><b>${esc(v.title)}</b><span>${esc(v.what)}</span><span class="raw">${esc(v.display)}</span></div>`).join("")}</div></div>` : "") +
       `<div class="d-block"><span class="d-label">Started with</span><div class="cmd mono" id="cmdline">Loading…</div></div>` +
       actionsBlock(n.path, n.name, null);
     if (scrollTop || !state.cmdFor || state.cmdFor !== n.pid) loadCmd(n.pid);
@@ -293,9 +303,11 @@ function renderDetails(scrollTop = true) {
     const v = state.services?.items.find((x) => x.id === s.id);
     if (!v) return closeDetails();
     const o = { ...v, kind: v.windows ? "windows" : "other" };
-    html = headBlock(o, v.windows ? "Windows service" : "Service from another company") +
-      `<p class="d-what">${esc(v.description || "No description.")}</p>` +
+    html = headBlock(o, v.windows ? "Part of Windows" : "From another company") +
+      `<p class="d-what">${esc(v.what)}</p>` +
+      (v.description && v.plain ? `<div class="d-block"><span class="d-label">Windows' own description</span><div class="s" style="white-space:normal">${esc(v.description)}</div></div>` : "") +
       `<div class="d-block"><span class="d-label">Facts</span>${factRows([
+        ["Windows calls it", esc(v.display)],
         ["Status", esc(v.state)],
         ["Starts", esc(v.start)],
         ["Made by", esc(v.made_by)],
@@ -412,7 +424,7 @@ function renderStartup() {
   const q = state.query;
   const items = (state.startup?.items || []).filter((e) => !q || [e.title, e.what, e.name, e.command].join(" ").toLowerCase().includes(q));
   $("#startupRows").innerHTML = items.map((e) => `<div class="row startup k-${e.kind}${state.sel?.id === e.id ? " sel" : ""}" data-id="${esc(e.id)}" data-type="startup" tabindex="0" style="grid-template-columns:minmax(0,1fr) 110px 110px 150px">
-      <div class="nm"><span class="chev none"></span>${tile(e)}<div class="txt"><div class="t"><span class="tt">${esc(e.title)}</span></div><div class="s">${esc(e.what)}</div></div></div>
+      <div class="nm"><span class="chev none"></span>${tile(e)}<div class="txt"><div class="t"><span class="tt">${esc(e.title)}</span>${raw(e.file)}</div><div class="s">${esc(e.what)}</div></div></div>
       <div class="cell lft"><span class="pill ${e.enabled ? "safe" : "neutral"}">${e.enabled ? "On" : "Off"}</span></div>
       <div class="cell lft">${e.running ? "Yes" : "No"}</div>
       <div class="cell lft">${esc(e.who)}</div></div>`).join("") || `<div class="empty">${q ? `Nothing matches “${esc(q)}”.` : "No startup apps found."}</div>`;
@@ -434,12 +446,12 @@ function renderServices() {
   const q = state.query;
   const filters = { running: (v) => v.state === "Running", all: () => true, third: (v) => !v.windows };
   const labels = { running: "Running", all: "All", third: "Not part of Windows" };
-  const searched = all.filter((v) => !q || [v.title, v.name, v.what, v.made_by, v.runs_in].join(" ").toLowerCase().includes(q));
+  const searched = all.filter((v) => !q || [v.title, v.name, v.display, v.what, v.made_by, v.runs_in].join(" ").toLowerCase().includes(q));
   $("#svcChips").innerHTML = Object.keys(filters).map((k) =>
     `<button class="chip ${k === "third" ? "k-other" : "all"}${state.svcFilter === k ? " on" : ""}" data-svc="${k}">${labels[k]} <b>${searched.filter(filters[k]).length}</b></button>`).join("");
   const items = searched.filter(filters[state.svcFilter]);
   $("#svcRows").innerHTML = items.map((v) => `<div class="row k-${v.windows ? "windows" : "other"}${state.sel?.id === v.id ? " sel" : ""}" data-id="${esc(v.id)}" data-type="service" tabindex="0" style="grid-template-columns:minmax(0,1fr) 100px 150px 190px">
-      <div class="nm"><span class="chev none"></span>${tile({ title: v.title })}<div class="txt"><div class="t"><span class="tt">${esc(v.title)}</span></div><div class="s">${esc(v.what)}</div></div></div>
+      <div class="nm"><span class="chev none"></span>${tile({ title: v.title })}<div class="txt"><div class="t"><span class="tt">${esc(v.title)}</span>${raw(v.name)}</div><div class="s">${esc(v.what)}</div></div></div>
       <div class="cell lft"><span class="pill ${v.state === "Running" ? "safe" : "neutral"}">${esc(v.state)}</span></div>
       <div class="cell lft">${esc(v.start)}</div>
       <div class="cell lft" style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${v.runs_in ? esc(v.runs_in) : "—"}</div></div>`).join("") ||
@@ -497,6 +509,11 @@ document.addEventListener("click", (e) => {
   const chip = t.closest("[data-kind]");
   if (chip) {
     state.kind = chip.dataset.kind && state.kind !== chip.dataset.kind ? chip.dataset.kind : null;
+    return renderProcesses();
+  }
+  const closeChip = t.closest("[data-close]");
+  if (closeChip) {
+    state.close = state.close === closeChip.dataset.close ? null : closeChip.dataset.close;
     return renderProcesses();
   }
   const svc = t.closest("[data-svc]");

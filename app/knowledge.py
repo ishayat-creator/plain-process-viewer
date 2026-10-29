@@ -8,6 +8,20 @@ from sysinfo import WINDIR, file_info, package_name
 HERE = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(HERE, "data", "known.json"), encoding="utf-8") as f:
     KNOWN = {k: v for k, v in json.load(f).items() if not k.startswith("_")}
+with open(os.path.join(HERE, "data", "services.json"), encoding="utf-8") as f:
+    _svc = {k: v for k, v in json.load(f).items() if not k.startswith("_")}
+SERVICES = {k: v for k, v in _svc.items() if not k.endswith("*")}
+SERVICE_PREFIXES = [(k[:-1], v) for k, v in _svc.items() if k.endswith("*")]
+
+
+def plain_service(name, display, description=""):
+    """Everyday title and explanation for a Windows service, with where it came from."""
+    key = re.sub(r"_[0-9a-f]{4,8}$", "", name.lower())
+    hit = SERVICES.get(key) or next((v for p, v in SERVICE_PREFIXES if key.startswith(p)), None)
+    if hit:
+        return {"title": hit["title"], "what": hit["what"], "display": display, "name": name, "plain": True}
+    first = description.strip().split(". ")[0].rstrip(".") + "." if description.strip() else ""
+    return {"title": display, "what": first or "Windows gives no description for this one.", "display": display, "name": name, "plain": False}
 
 # Section order: things you opened first, Windows last.
 KINDS = [
@@ -250,17 +264,19 @@ class Explainer:
         path, path_source = self.path_for(p["pid"])
         info = file_info(path) if path else {}
         known = KNOWN.get(lname)
-        services = [s for s in self.svc_by_pid.get(p["pid"], []) if s["state"] == "Running"]
+        services = [plain_service(s["name"], s["display"], (self.svc_cfg.get(s["name"]) or {}).get("description", ""))
+                    for s in self.svc_by_pid.get(p["pid"], []) if s["state"] == "Running"]
         desc = info.get("FileDescription")
         if desc and desc.lower() in GENERIC_DESCRIPTIONS:
             desc = None
         pkg = package_name(path)
 
         if lname == "svchost.exe" and services:
-            names = [s["display"] for s in services]
-            title = names[0] + (f" and {len(names) - 1} more" if len(names) > 1 else "")
-            what = "Windows service" + ("s: " if len(names) > 1 else ": ") + ", ".join(names)
-            source = "Windows service list"
+            first = services[0]
+            titles = list(dict.fromkeys(s["title"] for s in services))
+            title = titles[0] + (f" and {len(titles) - 1} more" if len(titles) > 1 else "")
+            what = first["what"] if len(titles) == 1 else "Holds these Windows helpers: " + ", ".join(titles) + "."
+            source = "Built-in plain-words list" if all(s["plain"] for s in services) else "Windows service list"
         elif known:
             title, what, source = known["title"], known["what"], "Built-in plain-words list"
         elif desc:
@@ -273,15 +289,18 @@ class Explainer:
         else:
             title, what, source = pretty_name(p["name"]), "", "File name only"
 
+        if services and source != "Built-in plain-words list" and services[0]["plain"]:
+            title, what, source = services[0]["title"], services[0]["what"], "Built-in plain-words list"
         if not what:
             if services:
-                what = "Runs the service: " + ", ".join(s["display"] for s in services)
+                what = " ".join(s["what"] for s in services[:2])
             elif desc and desc != title:
                 what = desc
             elif info.get("CompanyName"):
                 what = made_by(info["CompanyName"])
             elif path:
-                what = "No description in the file."
+                where = folder_label(path) or "an unusual folder"
+                what = f"No description inside the file. It lives in {where[0].lower() + where[1:]}."
             elif self.admin:
                 what = "Windows protects this one, so its details can't be read."
             else:
@@ -298,7 +317,7 @@ class Explainer:
             "folder": folder_label(path), "company": info.get("CompanyName"),
             "signer": (rich or {}).get("signer"), "signature": (rich or {}).get("status") if rich else ("Checking" if path else None),
             "icon": (rich or {}).get("icon") or None,
-            "services": [s["display"] for s in services], "close": close,
+            "services": services, "close": close,
             "note": (known or {}).get("note") or DEFAULT_NOTE[close],
             "cpu": round(self.cpu.get(p["pid"], 0.0), 1), "mem": p["private_ws"],
             "threads": p["threads"], "handles": p["handles"], "hidden": not path and not known,
