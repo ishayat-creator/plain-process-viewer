@@ -125,6 +125,7 @@ This makes `dist\PlainProcessViewer.exe` (about 14 MB), with Python, the plain-w
 | `app/static/` | The interface. |
 | `main.py` | Opens the app window. |
 | `build.ps1`, `packaging/version.txt` | Build the single .exe and set the file details Windows shows for it. |
+| `packaging/notices.py` | Collects the licences of everything packed into the .exe into `THIRD-PARTY-NOTICES.txt`. |
 
 ## Adding to the plain-words list
 
@@ -147,3 +148,7 @@ Each entry is one line of JSON, keyed by the lowercase file name:
 - Code signing, so Windows stops warning on first run.
 - Optional EchoTrail lookups (bring your own free key) for programs no list knows about.
 - Turning startup apps on and off from inside the app.
+
+## Licence
+
+[MIT](LICENSE): use it, change it and share it, including in your own projects. The .exe also packs Python and other open-source parts (Flask, psutil, pywin32, pywebview, Microsoft's WebView2 files and more); their licences are in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt).

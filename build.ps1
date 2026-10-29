@@ -4,6 +4,10 @@
 $root = $PSScriptRoot
 $app = Join-Path $root "app"
 
+# Refresh the licences of everything packed in, so THIRD-PARTY-NOTICES.txt matches this build.
+& (Join-Path $root ".venv\Scripts\python.exe") (Join-Path $root "packaging\notices.py")
+if ($LASTEXITCODE -ne 0) { throw "Couldn't write THIRD-PARTY-NOTICES.txt." }
+
 & (Join-Path $root ".venv\Scripts\pyinstaller.exe") `
     --noconfirm --clean --onefile --windowed `
     --name PlainProcessViewer `
