@@ -419,6 +419,10 @@ class Explainer:
         kind = classify(lname, path, info)
         close = (known or {}).get("close") or DEFAULT_CLOSE.get(kind, "safe")
         role = part_role(lname, self.cmdlines.get(p["pid"]))
+        if lname == "plainprocessviewer.exe":  # the one-file .exe is a small starter that runs a second copy of itself
+            par = self.parent_of(p)
+            role = ("App", "The app itself: reads what's running and shows it in this window.") if par and par["name"].lower() == lname \
+                else ("Starter", "Unpacks the app into a temporary folder, starts it, and tidies up when you close it.")
         return {
             "role": role[0] if role else None, "role_what": role[1] if role else None,
             "pid": p["pid"], "name": p["name"], "lname": lname, "title": title, "what": what, "kind": kind,

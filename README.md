@@ -75,7 +75,15 @@ About 780 programs and 195 Windows services, written for this app in everyday la
 
 Anything not on the list still gets a name from the file itself, and the Ask-an-AI button covers the rest.
 
-## Run it
+## Download
+
+Get **PlainProcessViewer.exe** from the [latest release](../../releases/latest) and double-click it. There's nothing to install and you don't need Python. It needs 64-bit Windows 10 or 11 and opens in about two seconds.
+
+**Windows will probably warn you the first time.** The .exe isn't code-signed yet, so SmartScreen may say *Windows protected your PC*. Click **More info**, then **Run anyway**. Some antivirus tools also wrongly flag apps packaged from Python. Microsoft Defender scanned this build and found no threats, and if you'd rather not trust a download, you can run it from the source below.
+
+Each time it starts, it unpacks itself into a temporary folder and removes that folder when you close it. That's why Plain Process Viewer lists itself as two parts, *Starter* and *App*.
+
+## Run from source
 
 Needs 64-bit Windows 10 or 11 and Python 3.11 or newer. [uv](https://docs.astral.sh/uv/) makes setup two lines:
 
@@ -92,6 +100,17 @@ Then double-click **Plain Process Viewer.cmd**. It opens in its own window (usin
 
 Windows hides some details unless the app runs as admin. When that happens the app shows how many are hidden and offers **Restart as admin**.
 
+If it can't start, it says why in a message box and saves the details to `%LOCALAPPDATA%\PlainProcessViewer\error.log`.
+
+### Build the .exe yourself
+
+```
+uv pip install --python .venv\Scripts\python.exe pyinstaller
+.\build.ps1
+```
+
+This makes `dist\PlainProcessViewer.exe` (about 14 MB), with Python, the plain-words list and the interface inside.
+
 ## Project layout
 
 | File | Job |
@@ -105,6 +124,7 @@ Windows hides some details unless the app runs as admin. When that happens the a
 | `app/server.py` | The local server: process data, End task (with checks), Ask an AI, Startup and Services. |
 | `app/static/` | The interface. |
 | `main.py` | Opens the app window. |
+| `build.ps1`, `packaging/version.txt` | Build the single .exe and set the file details Windows shows for it. |
 
 ## Adding to the plain-words list
 
@@ -124,6 +144,6 @@ Each entry is one line of JSON, keyed by the lowercase file name:
 
 - A **Suggest a better description** box: your wording replaces the built-in one, saved on your PC, and can be sent back to the list.
 - A **What's new since last time** badge for programs you haven't seen running before.
-- A single `.exe` download, so nobody needs Python to try it.
+- Code signing, so Windows stops warning on first run.
 - Optional EchoTrail lookups (bring your own free key) for programs no list knows about.
 - Turning startup apps on and off from inside the app.

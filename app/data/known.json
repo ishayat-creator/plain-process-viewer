@@ -238,5 +238,6 @@
   "epicgameslauncher.exe": {"title": "Epic Games Launcher", "what": "Game store and launcher.", "kind": "media", "close": "safe", "note": "Downloads pause."},
   "obs64.exe": {"title": "OBS Studio", "what": "Screen recording and live streaming.", "kind": "media", "close": "care", "note": "A recording or stream in progress stops."},
   "xboxpcapp.exe": {"title": "Xbox app", "what": "Xbox app for PC games.", "kind": "media", "close": "safe", "note": "Downloads pause."},
-  "photos.exe": {"title": "Photos", "what": "Windows Photos app.", "kind": "media", "close": "safe", "note": "Nothing is lost."}
+  "photos.exe": {"title": "Photos", "what": "Windows Photos app.", "kind": "media", "close": "safe", "note": "Nothing is lost."},
+  "plainprocessviewer.exe": {"title": "Plain Process Viewer", "what": "This app. Explains in plain words what's running on your PC.", "kind": "other", "close": "safe", "note": "This window closes. Nothing else is affected."}
 }

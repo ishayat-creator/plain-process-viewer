@@ -371,7 +371,8 @@ def api_open_startup_settings():
 
 @app.post("/api/elevate")
 def api_elevate():
-    args = subprocess.list2cmdline(sys.argv)
+    # From source, sys.executable is Python and argv[0] the script; the packaged .exe is both, so only its options are passed.
+    args = subprocess.list2cmdline(sys.argv[1:] if getattr(sys, "frozen", False) else sys.argv)
     rc = ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, args, os.getcwd(), 1)
     if rc <= 32:
         return jsonify({"ok": False, "reason": "Admin access wasn't given."})
