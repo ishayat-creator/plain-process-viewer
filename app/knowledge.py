@@ -6,6 +6,10 @@ import re
 from sysinfo import WINDIR, file_info, package_name
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+LISTED = "Built-in plain-words list"
+SELF_PIDS = {os.getpid(), os.getppid()}  # this app, and the starter that unpacks the one-file .exe
+
+
 def _load_process_lists():
     """known.json plus every processes-*.json. Keys ending in * match by prefix."""
     exact, prefixes, clashes = {}, [], []
@@ -385,9 +389,9 @@ class Explainer:
             titles = list(dict.fromkeys(s["title"] for s in services))
             title = titles[0] + (f" and {len(titles) - 1} more" if len(titles) > 1 else "")
             what = first["what"] if len(titles) == 1 else "Holds these Windows helpers: " + ", ".join(titles) + "."
-            source = "Built-in plain-words list" if all(s["plain"] for s in services) else "Windows service list"
+            source = LISTED if all(s["plain"] for s in services) else "Windows service list"
         elif known:
-            title, what, source = known["title"], known["what"], "Built-in plain-words list"
+            title, what, source = known["title"], known["what"], LISTED
         elif desc:
             title, source = desc, "The file's own description"
             what = ""
@@ -398,8 +402,8 @@ class Explainer:
         else:
             title, what, source = pretty_name(p["name"]), "", "File name only"
 
-        if services and source != "Built-in plain-words list" and services[0]["plain"]:
-            title, what, source = services[0]["title"], services[0]["what"], "Built-in plain-words list"
+        if services and source != LISTED and services[0]["plain"]:
+            title, what, source = services[0]["title"], services[0]["what"], LISTED
         if not what:
             if services:
                 what = " ".join(s["what"] for s in services[:2])
@@ -438,27 +442,30 @@ class Explainer:
 
     # ---------------------------------------------------------- unusual notes
 
-    def unusual(self, d, parent):
+    def unusual(self, d, parent, subject="It"):
+        """Things worth a look about one process. subject names it in the text: "It" on its own row, its file name on its app's row."""
         notes = []
         ln, path = d["lname"], d["path"]
         pn = parent["name"].lower() if parent else None
+        its = "Its" if subject == "It" else f"{subject}'s"
         if pn in QUIET_PARENTS and ln not in QUIET_OK_CHILDREN:
             notes.append(f"{pretty_name(parent['name'])} normally doesn't start other programs, but it started {d['name']}.")
         if pn in DOC_PARENTS and ln in SHELL_CHILDREN:
             notes.append(f"{pretty_name(parent['name'])} started {d['name']}. Documents and scripts starting command tools is a common trick.")
         if path and ln in CORE_NAMES and not in_windows_dir(path):
-            notes.append(f"It's named like a Windows part ({d['name']}) but runs from outside the Windows folder.")
+            notes.append(f"{d['name']} is named like a Windows part but runs from outside the Windows folder.")
         if path and not in_windows_dir(path):
             for core in CORE_NAMES:
                 if _near_miss(ln, core):
-                    notes.append(f"Its name is one letter off a Windows part ({core}).")
+                    notes.append(f"{its} name is one letter off a Windows part ({core}).")
                     break
         if ln == "svchost.exe" and parent and pn != "services.exe":
-            notes.append(f"Windows service hosts are normally started by services.exe, but this one was started by {parent['name']}.")
-        if path:
+            notes.append(f"Windows service hosts are normally started by services.exe, but {d['name']} was started by {parent['name']}.")
+        if path and d["pid"] not in SELF_PIDS:  # this app itself is often run straight from Downloads
             low = path.lower()
-            if "\\appdata\\local\\temp\\" in low or "\\downloads\\" in low:
-                notes.append("It runs straight from your Downloads or Temp folder. Installers do this; most apps don't.")
+            where = "Temp" if "\\appdata\\local\\temp\\" in low else "Downloads" if "\\downloads\\" in low else None
+            if where:
+                notes.append(f"{subject} runs straight from your {where} folder, not an installed location. Installers and portable apps do this; most apps don't.")
         return notes
 
     # ---------------------------------------------------------- grouping
@@ -472,13 +479,21 @@ class Explainer:
             if par:
                 children.setdefault(par["pid"], []).append(pid)
 
+        def opened_from_browser(pid, par):
+            """A program opened from a browser (a download, a link that starts an app) is its own app, not a browser part.
+            The browser's real helpers live in its own folder."""
+            pd, cd = described.get(par["pid"]), described.get(pid)
+            if not pd or not cd or pd["kind"] != "browser" or cd["lname"] == pd["lname"] or not cd["path"] or not pd["path"]:
+                return False
+            return not cd["path"].lower().startswith(os.path.dirname(pd["path"]).lower() + "\\")
+
         def root_of(pid):
             seen = set()
             cur = pid
             while cur not in seen:
                 seen.add(cur)
                 par = parents.get(cur)
-                if not par or par["name"].lower() in BOUNDARY:
+                if not par or par["name"].lower() in BOUNDARY or opened_from_browser(cur, par):
                     return cur
                 cur = par["pid"]
             return cur
@@ -500,10 +515,13 @@ class Explainer:
                 d = dict(described[pid])
                 par = parents.get(pid)
                 d["unusual"] = self.unusual(d, par)
+                # On the app's own row, notes about its other parts say which part they mean.
+                d["app_notes"] = d["unusual"] if d["lname"] == first["lname"] else self.unusual(d, par, d["name"])
+                d["listed"] = d["source"] == LISTED
                 d["depth"] = depth
                 members.append(d)
                 kids = [c for c in children.get(pid, []) if c in described and root_of(c) != c]
-                node = {k: d[k] for k in ("pid", "name", "title", "what", "cpu", "mem", "unusual", "kind", "signature", "signer", "path", "folder", "source", "services", "icon")}
+                node = {k: d[k] for k in ("pid", "name", "title", "what", "cpu", "mem", "unusual", "kind", "signature", "signer", "path", "folder", "source", "services", "icon", "listed")}
                 if d["role"]:
                     node["title"] = f"{d['title']}: {d['role']}" if d["role"][0].isupper() and not d["role"].startswith(("Runs", "Starts")) else f"{d['title']} · {d['role']}"
                     node["what"] = d["role_what"]
@@ -516,12 +534,14 @@ class Explainer:
                 started_by = "Windows, at start-up" if first["lname"] in ("system", "registry", "secure system", "memory compression") else "A program that has already closed"
             else:
                 started_by = STARTED_BY.get(starter["name"].lower()) or described.get(starter["pid"], {}).get("title") or starter["name"]
+                if opened_from_browser(roots[0], starter):
+                    started_by += " (you opened it from there: a download or a link)"
 
             is_services = gid == "svchost.exe"
             title = "Windows services" if is_services else first["title"]
             what = ("Windows' built-in background helpers: Wi-Fi, sound, updates, printing and more. Open it to see each one."
                     if is_services else first["what"])
-            notes = [n for m in members for n in m["unusual"]]
+            notes = list(dict.fromkeys(n for m in members for n in m["app_notes"]))
             icon = next((m["icon"] for m in members if m["icon"] and m["lname"] == first["lname"]), None)
             out.append({
                 "id": gid, "title": title, "what": what, "kind": first["kind"], "close": first["close"],
@@ -530,6 +550,7 @@ class Explainer:
                 "path": first["path"], "folder": first["folder"], "company": first["company"],
                 "signer": first["signer"], "signature": first["signature"], "source": first["source"],
                 "started_by": started_by, "hidden": first["hidden"], "unusual": notes,
+                "unlisted": sum(1 for m in members if not m["listed"]),
                 "pids": [m["pid"] for m in members], "parts": parts, "exe": first["name"],
             })
 
@@ -546,6 +567,7 @@ class Explainer:
             m["count"] += g["count"]
             m["pids"] += g["pids"]
             m["parts"] += g["parts"]
-            m["unusual"] += g["unusual"]
+            m["unusual"] = list(dict.fromkeys(m["unusual"] + g["unusual"]))
+            m["unlisted"] += g["unlisted"]
             m["icon"] = m["icon"] or g["icon"]
         return list(merged.values())

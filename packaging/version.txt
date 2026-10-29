@@ -1,8 +1,8 @@
 # File details Windows shows for PlainProcessViewer.exe (Properties > Details). Read by PyInstaller's --version-file.
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(0, 1, 0, 0),
-    prodvers=(0, 1, 0, 0),
+    filevers=(0, 1, 1, 0),
+    prodvers=(0, 1, 1, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -15,11 +15,11 @@ VSVersionInfo(
       StringTable(
         '040904B0',
         [StringStruct('FileDescription', 'Plain Process Viewer'),
-         StringStruct('FileVersion', '0.1.0'),
+         StringStruct('FileVersion', '0.1.1'),
          StringStruct('InternalName', 'PlainProcessViewer'),
          StringStruct('OriginalFilename', 'PlainProcessViewer.exe'),
          StringStruct('ProductName', 'Plain Process Viewer'),
-         StringStruct('ProductVersion', '0.1.0'),
+         StringStruct('ProductVersion', '0.1.1'),
          StringStruct('Comments', 'Task Manager, in plain words. https://github.com/ishayat-creator/plain-process-viewer')])
     ]),
     VarFileInfo([VarStruct('Translation', [1033, 1200])])

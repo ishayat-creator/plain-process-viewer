@@ -26,9 +26,9 @@ That matters more now that so many of us run each other's half-finished tools, A
 
 **Tells you what happens if you close it.** Every app is marked *Safe to close*, *Close with care*, *Don't close*, or *Windows needs it*, with a sentence on what you'd lose. Ending the parts Windows can't live without is blocked.
 
-**Filters by kind and by risk of closing.** Chips along the top filter by Browsers, AI tools, Chat, Work, Games and media, Developer tools, Drivers and hardware, Windows. A second row filters by what happens if you close it, so "show me everything that's safe to close" is one click.
+**Filters by kind and by risk of closing.** Chips along the top filter by Browsers, AI tools, Chat, Work, Games and media, Developer tools, Drivers and hardware, Windows. A second row filters by what happens if you close it, so "show me everything that's safe to close" is one click. **Not on our list** shows everything the built-in list doesn't know yet, named from the file itself.
 
-**Shows who started what.** Every app shows what launched it ("You, from the Start menu", "Windows, as a background service", or another app), who made it, whether it's signed, and where it lives.
+**Shows who started what.** Every app shows what launched it ("You, from the Start menu", "Windows, as a background service", or another app), who made it, whether it's signed, and where it lives. A program you open from your browser's downloads gets its own row, marked as opened from the browser, instead of hiding among the browser's parts.
 
 **Points out unusual things, without crying wolf.** Notepad or Calculator starting other programs, Office starting PowerShell, a Windows name running outside the Windows folder, a name one letter off a Windows part, a program running from Downloads or Temp. These are shown as notes to check, never as verdicts.
 
@@ -77,7 +77,7 @@ Anything not on the list still gets a name from the file itself, and the Ask-an-
 
 ## Download
 
-Get **PlainProcessViewer.exe** from the [latest release](../../releases/latest) and double-click it. There's nothing to install and you don't need Python. It needs 64-bit Windows 10 or 11 and opens in about two seconds.
+Get **PlainProcessViewer.exe** from the [latest release](../../releases/latest) and double-click it. There's nothing to install and you don't need Python. It needs 64-bit Windows 10 or 11 and opens in about two seconds. On small or zoomed-in screens (tablets, foldables) it opens full-screen.
 
 **Windows will probably warn you the first time.** The .exe isn't code-signed yet, so SmartScreen may say *Windows protected your PC*. Click **More info**, then **Run anyway**. Some antivirus tools also wrongly flag apps packaged from Python. Microsoft Defender scanned this build and found no threats, and if you'd rather not trust a download, you can run it from the source below.
 

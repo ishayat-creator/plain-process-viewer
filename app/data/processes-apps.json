@@ -217,6 +217,12 @@
   "microsoftedgeupdate.exe": {"title": "Edge updater", "what": "Keeps Microsoft Edge up to date.", "kind": "browser", "close": "safe", "note": "Updates pause."},
   "onedrivestandaloneupdater.exe": {"title": "OneDrive updater", "what": "Keeps OneDrive up to date.", "kind": "work", "close": "safe", "note": "Updates pause."},
   "maintenanceservice.exe": {"title": "Firefox updater", "what": "Installs Firefox updates without asking for admin rights.", "kind": "browser", "close": "safe", "note": "Updates pause."},
+  "pingsender.exe": {"title": "Firefox usage report sender", "what": "Sends Firefox's last usage report to Mozilla, right after you close Firefox.", "kind": "browser", "close": "safe", "note": "That one report isn't sent."},
+  "default-browser-agent.exe": {"title": "Firefox default-browser check", "what": "Checks now and then which browser is your default, and tells Mozilla.", "kind": "browser", "close": "safe", "note": "Nothing you use stops."},
+  "crashreporter.exe": {"title": "Mozilla crash reporter", "what": "Offers to send a report after Firefox or Thunderbird crashes.", "kind": "browser", "close": "safe", "note": "That crash report isn't sent."},
+  "minidump-analyzer.exe": {"title": "Firefox crash report reader", "what": "Reads a crash's details so Firefox can send a useful report.", "kind": "browser", "close": "safe", "note": "The crash report may be less complete."},
+  "private_browsing.exe": {"title": "Firefox private window", "what": "Opens Firefox private windows, with their own taskbar icon.", "kind": "browser", "close": "care", "note": "Private windows may close."},
+  "plugin-container.exe": {"title": "Firefox or Thunderbird helper", "what": "Runs web pages or plugins in a separate part, so one bad page can't crash everything.", "kind": "browser", "close": "care", "note": "Some tabs or plugins may stop."},
   "braveupdate.exe": {"title": "Brave updater", "what": "Keeps the Brave browser up to date.", "kind": "browser", "close": "safe", "note": "Updates pause."},
   "squirrel.exe": {"title": "App installer/updater", "what": "Installs or updates an app (used by Discord, Slack and others).", "kind": "other", "close": "care", "note": "An update in progress may fail."}
 }

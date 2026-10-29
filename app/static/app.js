@@ -11,7 +11,7 @@ const KIND_LABEL = {
 const CLOSE_LABEL = { safe: "Safe to close", care: "Close with care", keep: "Don't close", critical: "Windows needs it" };
 
 const state = {
-  view: "processes", data: null, kind: null, close: null, query: "", sort: { key: "name", dir: 1 },
+  view: "processes", data: null, kind: null, close: null, unlisted: false, query: "", sort: { key: "name", dir: 1 },
   expanded: new Set(), collapsed: new Set(), sel: null,
   startup: null, services: null, svcFilter: "running", busy: false,
 };
@@ -96,10 +96,10 @@ function partText(n) {
 }
 const raw = (name) => (name ? `<span class="raw">${esc(name)}</span>` : "");
 
-function partRows(g, onlyMatches) {
+function partRows(g, keep) {
   let html = "";
   walk(g.parts, (n, depth) => {
-    if (onlyMatches && !partText(n).includes(state.query)) return;
+    if (keep && !keep(n)) return;
     const sel = state.sel?.type === "part" && state.sel.pid === n.pid ? " sel" : "";
     const flag = n.unusual.length ? `<span class="flag">${icon("alert")}Unusual</span>` : "";
     html += `<div class="row part k-${n.kind}${sel}" data-pid="${n.pid}" data-group="${esc(g.id)}" tabindex="0">
@@ -131,18 +131,23 @@ function renderProcesses() {
   const base = d.groups.map((g) => ({ g, m: matches(g, q) })).filter((x) => x.m.hit);
   const closeOk = (g) => !state.close || g.close === state.close;
   const kindOk = (g) => !state.kind || g.kind === state.kind;
-  const visible = base.filter((x) => closeOk(x.g));
+  const listOk = (g) => !state.unlisted || g.unlisted > 0;
+  const visible = base.filter((x) => closeOk(x.g) && listOk(x.g));
   const counts = {};
   visible.forEach(({ g }) => (counts[g.kind] = (counts[g.kind] || 0) + 1));
   const closeCounts = {};
-  base.filter((x) => kindOk(x.g)).forEach(({ g }) => (closeCounts[g.close] = (closeCounts[g.close] || 0) + 1));
+  base.filter((x) => kindOk(x.g) && listOk(x.g)).forEach(({ g }) => (closeCounts[g.close] = (closeCounts[g.close] || 0) + 1));
+  const unlistedCount = base.filter((x) => kindOk(x.g) && closeOk(x.g) && x.g.unlisted > 0).length;
 
   $("#chips").innerHTML = `<button class="chip all${state.kind ? "" : " on"}" data-kind="">All apps <b>${visible.length}</b></button>` +
     d.kinds.filter((k) => counts[k.id]).map((k) =>
       `<button class="chip k-${k.id}${state.kind === k.id ? " on" : ""}" data-kind="${k.id}">${esc(k.label)} <b>${counts[k.id]}</b></button>`).join("");
   $("#closeChips").innerHTML = `<span class="chip-label">If you close it</span>` +
     ["safe", "care", "keep", "critical"].filter((c) => closeCounts[c] || state.close === c).map((c) =>
-      `<button class="chip c-${c}${state.close === c ? " on" : ""}" data-close="${c}">${c === "critical" ? icon("lock") : ""}${CLOSE_LABEL[c]} <b>${closeCounts[c] || 0}</b></button>`).join("");
+      `<button class="chip c-${c}${state.close === c ? " on" : ""}" data-close="${c}">${c === "critical" ? icon("lock") : ""}${CLOSE_LABEL[c]} <b>${closeCounts[c] || 0}</b></button>`).join("") +
+    (unlistedCount || state.unlisted
+      ? `<span class="chip-gap"></span><button class="chip unlisted${state.unlisted ? " on" : ""}" data-unlisted="1" title="Apps with a part that isn't on the built-in plain-words list yet. Those parts are named from the file itself.">Not on our list <b>${unlistedCount}</b></button>`
+      : "");
 
   let html = "";
   for (const k of d.kinds) {
@@ -154,12 +159,17 @@ function renderProcesses() {
     if (closed) continue;
     for (const g of list) {
       const viaPart = visible.find((x) => x.g === g).m.viaPart;
-      const open = state.expanded.has(g.id) || viaPart;
+      const onlyUnlisted = state.unlisted && g.count > 1;
+      const open = state.expanded.has(g.id) || viaPart || onlyUnlisted;
       html += groupRow(g, open);
-      if (open && g.count > 1) html += partRows(g, viaPart && !state.expanded.has(g.id));
+      // Opened by a search or the "Not on our list" filter: show just the parts that fit.
+      const keep = state.expanded.has(g.id) ? null : (n) => (!viaPart || partText(n).includes(q)) && (!state.unlisted || !n.listed);
+      if (open && g.count > 1) html += partRows(g, keep);
     }
   }
-  $("#rows").innerHTML = html || `<div class="empty">${q ? `Nothing matches “${esc(q)}”.` : "Nothing matches these filters."}</div>`;
+  const why = q ? `Nothing matches “${esc(q)}”.` : state.unlisted && !state.kind && !state.close
+    ? "Everything running now is on our list." : "Nothing matches these filters.";
+  $("#rows").innerHTML = html || `<div class="empty">${why} <button class="btn small" data-act="show-all">Show all apps</button></div>`;
   updateButtons();
   if (state.sel && (state.sel.type === "group" || state.sel.type === "part")) renderDetails(false);
 }
@@ -548,6 +558,11 @@ document.addEventListener("click", (e) => {
     if (a === "open-loc") api("/api/open-location", { path: act.dataset.path }).then((r) => !r.ok && toast(r.reason)).catch((err) => toast(err.message));
     if (a === "web") api("/api/search-web", { q: act.dataset.q }).then(() => toast("Opened a web search in your browser"));
     if (a === "startup-settings") api("/api/open-startup-settings", {});
+    if (a === "show-all") {
+      Object.assign(state, { kind: null, close: null, unlisted: false, query: "" });
+      $("#search").value = "";
+      renderProcesses();
+    }
     return;
   }
   const ptree = t.closest(".ptree [data-pid]");
@@ -556,11 +571,16 @@ document.addEventListener("click", (e) => {
   const chip = t.closest("[data-kind]");
   if (chip) {
     state.kind = chip.dataset.kind && state.kind !== chip.dataset.kind ? chip.dataset.kind : null;
+    if (!chip.dataset.kind) Object.assign(state, { close: null, unlisted: false });  // "All apps" means all of them
     return renderProcesses();
   }
   const closeChip = t.closest("[data-close]");
   if (closeChip) {
     state.close = state.close === closeChip.dataset.close ? null : closeChip.dataset.close;
+    return renderProcesses();
+  }
+  if (t.closest("[data-unlisted]")) {
+    state.unlisted = !state.unlisted;
     return renderProcesses();
   }
   const svc = t.closest("[data-svc]");
