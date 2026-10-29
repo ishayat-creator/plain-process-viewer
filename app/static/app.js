@@ -647,7 +647,16 @@ $("#startupRefresh").addEventListener("click", loadStartup);
 $("#startupSettings").addEventListener("click", () => api("/api/open-startup-settings", {}));
 
 paintThemeIcon();
-refresh(true);
+// ?select=<app id>&expand=1 opens an app's details on load (used for README screenshots).
+const params = new URLSearchParams(location.search);
+refresh(true).then(() => {
+  const id = params.get("select");
+  if (!id || !findGroup(id)) return;
+  if (params.get("expand")) state.expanded.add(id);
+  renderProcesses();
+  select({ type: "group", id });
+  document.querySelector(`.row[data-group="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "center" });
+});
 setInterval(() => {
   if (document.hidden || !$("#modal").hidden) return;
   if (state.view === "processes") refresh();

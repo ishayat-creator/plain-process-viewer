@@ -18,7 +18,7 @@ from flask import Flask, Response, abort, jsonify, request
 import startup
 import sysinfo
 from enrich import Enricher
-from knowledge import GENERIC_TITLES, KINDS, KNOWN, Explainer, classify, folder_label, made_by, plain_service
+from knowledge import GENERIC_TITLES, KINDS, KNOWN, Explainer, classify, folder_label, lookup, made_by, plain_service
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOKEN = secrets.token_urlsafe(24)
@@ -398,7 +398,7 @@ def api_startup():
         path = e["path"]
         lname = os.path.basename(path).lower() if path else ""
         info = sysinfo.file_info(path) if path and os.path.isfile(path) else {}
-        known = KNOWN.get(lname)
+        known = lookup(lname)
         rich = enricher.get(path) if path and os.path.isfile(path) else None
         desc = info.get("FileDescription") or info.get("ProductName")
         if desc and desc.strip().lower() in GENERIC_TITLES:

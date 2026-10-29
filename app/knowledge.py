@@ -6,8 +6,34 @@ import re
 from sysinfo import WINDIR, file_info, package_name
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-with open(os.path.join(HERE, "data", "known.json"), encoding="utf-8") as f:
-    KNOWN = {k: v for k, v in json.load(f).items() if not k.startswith("_")}
+def _load_process_lists():
+    """known.json plus every processes-*.json. Keys ending in * match by prefix."""
+    exact, prefixes, clashes = {}, [], []
+    files = ["known.json"] + sorted(f for f in os.listdir(os.path.join(HERE, "data")) if f.startswith("processes-") and f.endswith(".json"))
+    for name in files:
+        with open(os.path.join(HERE, "data", name), encoding="utf-8") as f:
+            for k, v in json.load(f).items():
+                if k.startswith("_"):
+                    continue
+                if k.endswith("*"):
+                    prefixes.append((k[:-1], v))
+                elif k in exact:
+                    clashes.append(f"{k} ({name})")
+                else:
+                    exact[k] = v
+    prefixes.sort(key=lambda p: -len(p[0]))
+    return exact, prefixes, clashes
+
+
+KNOWN, KNOWN_PREFIXES, CLASHES = _load_process_lists()
+
+
+def lookup(lname):
+    """Plain-words entry for a lowercase file name, or None."""
+    hit = KNOWN.get(lname)
+    if hit:
+        return hit
+    return next((v for p, v in KNOWN_PREFIXES if lname.startswith(p)), None)
 with open(os.path.join(HERE, "data", "services.json"), encoding="utf-8") as f:
     _svc = {k: v for k, v in json.load(f).items() if not k.startswith("_")}
 SERVICES = {k: v for k, v in _svc.items() if not k.endswith("*")}
@@ -93,6 +119,7 @@ CHROMIUM_TYPES = {
     "zygote": ("Process starter", "Starts the app's other parts quickly."),
 }
 UTILITY_SUBTYPES = {
+    "node.mojom": ("Extension runner", "Runs the app's extensions or plugins."),
     "network": ("Network helper", "Handles the app's internet connections."),
     "storage": ("Storage helper", "Reads and writes the app's saved data."),
     "audio": ("Audio helper", "Plays the app's sound."),
@@ -108,6 +135,49 @@ FIREFOX_TYPES = {
     "rdd": ("Media decoder", "Decodes video and audio safely."),
     "utility": ("Utility helper", "Does a background job for Firefox, such as audio or file access."),
     "gmplugin": ("Media plugin", "Plays protected video, such as Netflix."),
+}
+JAVA_ROLES = [
+    ("GradleDaemon", "Gradle build helper", "Keeps Gradle loaded so Java and Android builds are faster."),
+    ("GradleWrapperMain", "Gradle build", "Building a Java or Android project."),
+    ("org.jetbrains.kotlin.daemon", "Kotlin compiler helper", "Keeps the Kotlin compiler loaded so builds are faster."),
+    ("org.codehaus.plexus.classworlds", "Maven build", "Building a Java project with Maven."),
+    ("org.eclipse.jdt.ls", "Java code helper", "Gives your editor autocomplete and error checking for Java."),
+    ("org.elasticsearch", "Elasticsearch", "Search database running on your PC."),
+    ("org.apache.catalina", "Tomcat web server", "Java web server running on your PC."),
+    ("kafka.Kafka", "Kafka", "Message system running on your PC."),
+    ("org.apache.zookeeper", "ZooKeeper", "Coordination service running on your PC."),
+    ("org.neo4j", "Neo4j database", "Graph database running on your PC."),
+    ("net.minecraft", "Minecraft", "The Minecraft game."),
+    ("sonarlint", "SonarLint", "Checks your code for problems in the editor."),
+    ("jenkins", "Jenkins", "Build server running on your PC."),
+    ("burpsuite", "Burp Suite", "Web security testing tool."),
+    ("com.charlesproxy", "Charles Proxy", "Records web traffic for developers."),
+]
+PYTHON_MODULES = {
+    "azure.cli": "Azure command line", "jupyterlab": "JupyterLab", "notebook": "Jupyter Notebook",
+    "ipykernel_launcher": "Jupyter notebook kernel", "ipykernel": "Jupyter notebook kernel",
+    "uvicorn": "Uvicorn web server", "gunicorn": "Gunicorn web server", "flask": "Flask web server",
+    "http.server": "simple web server", "streamlit": "Streamlit app", "celery": "Celery worker",
+    "pytest": "pytest tests", "pylsp": "Python code helper", "debugpy": "Python debugger", "pip": "pip installer",
+    "mypy": "mypy type checker", "black": "Black code formatter", "ruff": "Ruff code checker",
+}
+NODE_PACKAGES = {
+    "typescript": ("TypeScript code helper", "Gives your editor autocomplete and error checking for TypeScript."),
+    "@anthropic-ai/claude-code": ("Claude Code", "Anthropic's AI coding assistant in the terminal."),
+    "@openai/codex": ("Codex CLI", "OpenAI's AI coding assistant in the terminal."),
+    "@google/gemini-cli": ("Gemini CLI", "Google's AI coding assistant in the terminal."),
+    "@playwright/mcp": ("Playwright browser tool", "Lets an AI assistant control a web browser."),
+    "next": ("Next.js dev server", "Runs a Next.js website on your PC while you build it."),
+    "vite": ("Vite dev server", "Runs a website on your PC while you build it."),
+    "webpack": ("webpack", "Bundles a website's code."),
+    "eslint": ("ESLint", "Checks JavaScript code for problems."),
+    "prettier": ("Prettier", "Tidies code formatting."),
+    "jest": ("Jest tests", "Runs JavaScript tests."),
+    "nodemon": ("nodemon", "Restarts a program when its files change."),
+    "vercel": ("Vercel command line", "Deploys websites to Vercel."),
+    "netlify-cli": ("Netlify command line", "Deploys websites to Netlify."),
+    "firebase-tools": ("Firebase command line", "Works with Google Firebase."),
+    "wrangler": ("Cloudflare Wrangler", "Builds and deploys Cloudflare Workers."),
 }
 GENERIC_SCRIPTS = {"index.js", "main.js", "cli.js", "server.js", "app.js", "run.js", "index.mjs", "cli.mjs", "main.py", "server.py", "__main__.py", "app.py"}
 
@@ -144,11 +214,39 @@ def part_role(lname, args):
             last = rest[-1].lower() if rest else ""
             return FIREFOX_TYPES.get(last, ("Helper", "A helper part of Firefox."))
         return ("Main window", "The main Firefox program. Closing it closes all its parts.")
+    if lname in ("java.exe", "javaw.exe"):
+        for needle, label, what in JAVA_ROLES:
+            if needle.lower() in joined.lower():
+                return (label, what)
+        if "-jar" in rest:
+            i = rest.index("-jar")
+            if i + 1 < len(rest):
+                jar = os.path.basename(rest[i + 1])
+                return (f"Runs {jar}", f"Runs the Java program {jar}.")
+        main = next((a for a in reversed(rest) if not a.startswith("-") and "." in a and "\\" not in a and "/" not in a), None)
+        return (f"Runs {main.split('.')[-1]}", f"Runs the Java program {main}.") if main else None
+    if lname == "dotnet.exe":
+        if rest and rest[0] in ("run", "build", "test", "watch", "publish", "restore"):
+            return (f"dotnet {rest[0]}", f"Running \"dotnet {rest[0]}\" on a .NET project.")
+        if "vbcscompiler" in joined.lower():
+            return ("C# compiler (kept ready)", "Keeps the C# compiler loaded so builds are faster.")
+        if "msbuild" in joined.lower():
+            return ("Build worker", "Builds part of a .NET project.")
+        dll = next((a for a in rest if a.lower().endswith(".dll")), None)
+        if dll:
+            return (f"Runs {os.path.basename(dll)}", f"Runs the .NET program {os.path.basename(dll)}.")
+        return None
+    if lname == "msbuild.exe" and "/nodemode:" in joined.lower():
+        return ("Build worker", "One of MSBuild's helpers, building part of a project in parallel.")
     if lname in ("python.exe", "pythonw.exe"):
         if "-m" in rest:
             i = rest.index("-m")
             if i + 1 < len(rest):
-                return (f"Runs {rest[i + 1]}", f"Runs the Python module {rest[i + 1]}.")
+                mod = rest[i + 1]
+                friendly = PYTHON_MODULES.get(mod) or PYTHON_MODULES.get(mod.split(".")[0])
+                if friendly:
+                    return (friendly, f"Runs {friendly} (Python module {mod}).")
+                return (f"Runs {mod}", f"Runs the Python module {mod}.")
         for a in rest:
             if a.lower().endswith((".py", ".pyw")):
                 label = _script_label(a)
@@ -160,8 +258,19 @@ def part_role(lname, args):
             if base in ("npx-cli.js", "npm-cli.js"):
                 pkg = next((x for x in rest[i + 1:] if not x.startswith("-")), None)
                 if pkg:
+                    bare = re.sub(r"(?<=.)@[^/]*$", "", pkg)
+                    if bare in NODE_PACKAGES:
+                        return NODE_PACKAGES[bare]
                     return (f"Runs {pkg}", f"Runs the JavaScript tool {pkg}, downloaded with npx.")
             if base.endswith((".js", ".mjs", ".cjs")):
+                if base == "tsserver.js":
+                    return NODE_PACKAGES["typescript"]
+                m = re.search(r"node_modules[\\/]((?:@[^\\/]+[\\/])?[^\\/]+)", a)
+                if m:
+                    pkg = m.group(1).replace("\\", "/")
+                    if pkg in NODE_PACKAGES:
+                        return NODE_PACKAGES[pkg]
+                    return (f"Runs {pkg}", f"Runs the JavaScript tool {pkg}.")
                 label = _script_label(a)
                 return (f"Runs {label}", f"Runs the JavaScript file {label}.")
         return None
@@ -194,7 +303,7 @@ def in_windows_dir(path):
 
 
 def classify(lname, path, info):
-    known = KNOWN.get(lname)
+    known = lookup(lname)
     if known and known.get("kind"):
         return known["kind"]
     hay = " ".join([lname, (info.get("CompanyName") or ""), (info.get("ProductName") or ""), (path or "")]).lower()
@@ -263,7 +372,7 @@ class Explainer:
         lname = p["name"].lower()
         path, path_source = self.path_for(p["pid"])
         info = file_info(path) if path else {}
-        known = KNOWN.get(lname)
+        known = lookup(lname)
         services = [plain_service(s["name"], s["display"], (self.svc_cfg.get(s["name"]) or {}).get("description", ""))
                     for s in self.svc_by_pid.get(p["pid"], []) if s["state"] == "Running"]
         desc = info.get("FileDescription")
@@ -406,7 +515,7 @@ class Explainer:
 
             is_services = gid == "svchost.exe"
             title = "Windows services" if is_services else first["title"]
-            what = ("Each part runs one or more Windows services: Wi-Fi, sound, updates, printing and more."
+            what = ("Windows' built-in background helpers: Wi-Fi, sound, updates, printing and more. Open it to see each one."
                     if is_services else first["what"])
             notes = [n for m in members for n in m["unusual"]]
             icon = next((m["icon"] for m in members if m["icon"] and m["lname"] == first["lname"]), None)
