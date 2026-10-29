@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plain Process Viewer</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%235752D0'/%3E%3Cpath d='M8 11h16M8 16h11M8 21h14' stroke='white' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/style.css">
+<script>window.PPV_TOKEN = "__TOKEN__";
+try { const t = localStorage.getItem("ppv-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></symbol>
+  <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m15 9-6 6M9 9l6 6"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol>
+  <symbol id="i-web" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.5"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4L21 8M21 3v5h-5"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+</svg>
+
+<div class="app">
+  <nav class="rail" aria-label="Pages">
+    <button class="rail-btn" id="railToggle" aria-label="Show page names"><svg><use href="#i-menu"/></svg></button>
+    <button class="rail-btn active" data-view="processes"><svg><use href="#i-list"/></svg><span>Processes</span></button>
+    <button class="rail-btn" data-view="startup"><svg><use href="#i-zap"/></svg><span>Startup apps</span></button>
+    <button class="rail-btn" data-view="services"><svg><use href="#i-layers"/></svg><span>Services</span></button>
+    <div class="rail-gap"></div>
+    <button class="rail-btn" id="themeBtn" aria-label="Switch light or dark"><svg><use href="#i-moon"/></svg><span>Theme</span></button>
+  </nav>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="brand">Plain Process Viewer</div>
+      <label class="search"><svg><use href="#i-search"/></svg>
+        <input id="search" type="search" placeholder="Search by name, what it does, or PID" autocomplete="off">
+      </label>
+      <div class="brand-gap"></div>
+    </header>
+
+    <section class="view" id="view-processes">
+      <div class="head">
+        <h1>Processes</h1>
+        <div class="actions">
+          <button class="btn" id="openLocBtn" disabled><svg><use href="#i-folder"/></svg>Open file location</button>
+          <button class="btn danger" id="endBtn" disabled><svg><use href="#i-x"/></svg>End task</button>
+        </div>
+      </div>
+      <div class="notice" id="adminNotice" hidden>
+        <svg><use href="#i-shield"/></svg>
+        <span id="adminText"></span>
+        <button class="btn small" id="elevateBtn">Restart as admin</button>
+      </div>
+      <div class="chips" id="chips" role="toolbar" aria-label="Filter by kind"></div>
+      <div class="table" id="procTable">
+        <div class="thead">
+          <button class="th name" data-sort="name">Name</button>
+          <button class="th num" data-sort="cpu"><b id="cpuTotal">–</b><span>CPU</span></button>
+          <button class="th num" data-sort="mem"><b id="memTotal">–</b><span>Memory</span></button>
+          <div class="th">If you close it</div>
+        </div>
+        <div id="rows" class="rows"></div>
+      </div>
+      <p class="foot">Explains what's running. It isn't an antivirus and can't tell you whether something is safe. <span id="checking"></span></p>
+    </section>
+
+    <section class="view" id="view-startup" hidden>
+      <div class="head">
+        <h1>Startup apps</h1>
+        <div class="actions">
+          <button class="btn" id="startupRefresh"><svg><use href="#i-refresh"/></svg>Refresh</button>
+          <button class="btn" id="startupSettings"><svg><use href="#i-settings"/></svg>Turn on or off in Windows Settings</button>
+        </div>
+      </div>
+      <p class="lead">Programs that start by themselves when you sign in to Windows.</p>
+      <div class="table">
+        <div class="thead startup">
+          <div class="th name">Name</div><div class="th">Status</div><div class="th">Running now</div><div class="th">Starts for</div>
+        </div>
+        <div id="startupRows" class="rows"></div>
+      </div>
+    </section>
+
+    <section class="view" id="view-services" hidden>
+      <div class="head">
+        <h1>Services</h1>
+      </div>
+      <p class="lead">Background helpers that Windows starts and manages. Most belong to Windows itself.</p>
+      <div class="chips" id="svcChips" role="toolbar" aria-label="Filter services"></div>
+      <div class="table">
+        <div class="thead services">
+          <div class="th name">Name</div><div class="th">Status</div><div class="th">Starts</div><div class="th">Runs inside</div>
+        </div>
+        <div id="svcRows" class="rows"></div>
+      </div>
+    </section>
+  </div>
+
+  <aside class="details" id="details" hidden aria-label="Details"></aside>
+</div>
+
+<div class="modal-back" id="modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <h2 id="modalTitle"></h2>
+    <div id="modalBody"></div>
+    <div class="modal-actions" id="modalActions"></div>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

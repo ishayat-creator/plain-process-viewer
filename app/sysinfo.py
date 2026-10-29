@@ -6,6 +6,7 @@ private working set (the "Memory" number Task Manager shows) without needing adm
 import ctypes
 import ctypes.wintypes as wt
 import os
+import re
 import struct
 import threading
 import time
@@ -183,8 +184,9 @@ def service_status(max_age=10):
             rows = win32service.EnumServicesStatusEx(scm, win32service.SERVICE_WIN32, win32service.SERVICE_STATE_ALL, None)
         finally:
             win32service.CloseServiceHandle(scm)
+        # Per-user services carry a session suffix like "_f5a3d"; drop it from the shown name.
         data = [{
-            "name": r["ServiceName"], "display": r["DisplayName"], "pid": r["ProcessId"],
+            "name": r["ServiceName"], "display": re.sub(r"_[0-9a-f]{4,8}$", "", r["DisplayName"]), "pid": r["ProcessId"],
             "state": STATES.get(r["CurrentState"], "Unknown"),
         } for r in rows]
         _svc_status.update(t=time.time(), data=data)
