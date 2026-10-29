@@ -330,6 +330,7 @@ function renderDetails(scrollTop = true) {
 
 function actionsBlock(path, exe, close) {
   return `<div class="d-actions">
+    <button class="btn primary" data-act="ask">${icon("chat")}Ask an AI</button>
     <button class="btn danger" data-act="end">${icon("x")}End task</button>
     ${path ? `<button class="btn" data-act="open-loc" data-path="${esc(path)}">${icon("folder")}Open file location</button>` : ""}
     <button class="btn" data-act="web" data-q="${esc(exe)} process">${icon("web")}Search the web</button></div>`;
@@ -360,9 +361,54 @@ function select(sel) {
   updateButtons();
 }
 
+// ------------------------------------------------------------------ ask an AI
+
+async function askAI() {
+  const s = state.sel;
+  if (!s || (s.type !== "group" && s.type !== "part")) return;
+  let text;
+  try {
+    const r = await api("/api/ask", s.type === "group" ? { group: s.id } : { pid: s.pid });
+    text = r.text;
+  } catch (e) {
+    return toast("That program has closed, so there's nothing to ask about.");
+  }
+  $("#modalTitle").textContent = "Ask an AI about this";
+  $("#modalBody").innerHTML = `<p>This question is ready to paste into any AI chat. It's exactly what gets copied; your user name and anything that looks like a password or key are hidden.</p>
+    <textarea id="askText" class="ask-text mono" readonly>${esc(text)}</textarea>`;
+  $("#modalActions").innerHTML = `<div class="ask-sites"><span>Open:</span>
+      <button class="btn small" data-site="chatgpt">ChatGPT</button><button class="btn small" data-site="claude">Claude</button><button class="btn small" data-site="kimi">Kimi</button></div>
+    <button class="btn" data-ask="close">Close</button><button class="btn primary" data-ask="copy">${icon("copy")}Copy question</button>`;
+  $(".modal").classList.add("wide");
+  $("#modal").hidden = false;
+  $("#modalActions").onclick = async (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.dataset.site) {
+      await copyText(text, true);
+      api("/api/open-ai", { site: b.dataset.site });
+      return toast("Question copied. Paste it into the chat with Ctrl+V.");
+    }
+    if (b.dataset.ask === "copy") return copyText(text);
+    $("#modal").hidden = true;
+  };
+  $("#modalActions [data-ask=copy]").focus();
+}
+
+async function copyText(text, quiet) {
+  let ok = false;
+  try { await navigator.clipboard.writeText(text); ok = true; } catch (e) { /* fall back to Windows clipboard */ }
+  if (!ok) {
+    try { await api("/api/copy", { text }); ok = true; } catch (e) { /* shown below */ }
+  }
+  if (!quiet) toast(ok ? "Question copied. Paste it into any AI chat with Ctrl+V." : "Couldn't copy. Select the text and press Ctrl+C.");
+  return ok;
+}
+
 // ------------------------------------------------------------------ end task
 
 function modal(title, bodyHtml, actions) {
+  $(".modal").classList.remove("wide");
   $("#modalTitle").textContent = title;
   $("#modalBody").innerHTML = bodyHtml;
   $("#modalActions").innerHTML = actions.map((a, i) => `<button class="btn ${a.cls || ""}" data-i="${i}">${a.label}</button>`).join("");
@@ -498,6 +544,7 @@ document.addEventListener("click", (e) => {
     const a = act.dataset.act;
     if (a === "close-details") closeDetails();
     if (a === "end") confirmEnd();
+    if (a === "ask") askAI();
     if (a === "open-loc") api("/api/open-location", { path: act.dataset.path }).then((r) => !r.ok && toast(r.reason)).catch((err) => toast(err.message));
     if (a === "web") api("/api/search-web", { q: act.dataset.q }).then(() => toast("Opened a web search in your browser"));
     if (a === "startup-settings") api("/api/open-startup-settings", {});

@@ -3,6 +3,7 @@ import base64
 import ctypes
 import hashlib
 import os
+import re
 import secrets
 import subprocess
 import sys
@@ -225,6 +226,134 @@ def api_open_location():
         return jsonify({"ok": False, "reason": "That file can't be found."}), 400
     subprocess.Popen(["explorer.exe", "/select,", os.path.normpath(path)])
     return jsonify({"ok": True})
+
+
+HOME = os.path.expanduser("~")
+SECRET_ARG = re.compile(r"(?i)((?:key|token|secret|password|passwd|pwd|auth|bearer)[=: ]+)\S+")
+LONG_RANDOM = re.compile(r"\b[A-Za-z0-9_\-]{32,}\b")
+AI_SITES = {"chatgpt": "https://chatgpt.com/", "claude": "https://claude.ai/new", "kimi": "https://www.kimi.com/"}
+
+
+def _mask(text):
+    """Hide your user name and anything that looks like a password or key before it leaves the app."""
+    if not text:
+        return text
+    text = re.sub(re.escape(HOME), "%USERPROFILE%", text, flags=re.I)
+    text = SECRET_ARG.sub(r"\1[hidden]", text)
+    return LONG_RANDOM.sub("[hidden]", text)
+
+
+def _connections(pids):
+    """(internet addresses, count of links to other programs on this PC or the home network)."""
+    import ipaddress
+    internet, local = set(), 0
+    try:
+        for c in psutil.net_connections(kind="inet"):
+            if c.pid in pids and c.raddr and c.status == psutil.CONN_ESTABLISHED:
+                ip = ipaddress.ip_address(c.raddr.ip.split("%")[0])
+                if ip.is_loopback or ip.is_private or ip.is_link_local:
+                    local += 1
+                else:
+                    internet.add(f"{c.raddr.ip}:{c.raddr.port}")
+    except Exception:
+        pass
+    return sorted(internet), local
+
+
+def _in_startup(path):
+    if not path:
+        return False
+    try:
+        return any((e.get("path") or "").lower() == path.lower() for e in startup.entries())
+    except Exception:
+        return False
+
+
+@app.post("/api/ask")
+def api_ask():
+    """Builds a ready-to-paste question about one app or part, for any AI chat."""
+    body = request.get_json(force=True) or {}
+    snap = snapshot()
+    target, group = None, None
+    for g in snap["groups"]:
+        if body.get("group") and g["id"] == body["group"]:
+            target, group = g, g
+        stack = list(g["parts"])
+        while stack and body.get("pid") and target is None:
+            n = stack.pop()
+            if n["pid"] == body["pid"]:
+                target, group = n, g
+            stack.extend(n["children"])
+        if target:
+            break
+    if not target:
+        return jsonify({"text": ""}), 404
+
+    pids = set(group["pids"]) if target is group else {target["pid"]}
+    names = []
+    stack = list(group["parts"]) if target is group else [target]
+    while stack:
+        n = stack.pop()
+        names.append(n["name"])
+        stack.extend(n["children"])
+    first_pid = target["pid"] if target is not group else group["pids"][0]
+    try:
+        cmd = subprocess.list2cmdline(psutil.Process(first_pid).cmdline())
+    except Exception:
+        cmd = ""
+    conns = _connections(pids)
+    services = target.get("services") or []
+    sig = {"Valid": f"signed by {target.get('signer')}", "NotSigned": "not signed"}.get(target.get("signature"), target.get("signature") or "unknown")
+    lines = [
+        "I'm looking at a program running on my Windows PC. In plain everyday words (no jargon), please tell me:",
+        "what it is, who makes it, why it might be running, and what happens if I close it.",
+        "If you don't recognise it, say so instead of guessing.",
+        "",
+        f"Name shown: {target['title']}",
+        f"File: {group['exe'] if target is group else target['name']}",
+        f"Folder: {_mask(target.get('path')) or 'hidden by Windows'}",
+        f"Made by: {group.get('company') or 'not stated in the file'}",
+        f"Signature: {sig}",
+        f"Started by: {group.get('started_by')}" if target is group else f"Part of: {group['title']} ({group['exe']})",
+        f"Start command: {_mask(cmd)[:600] or 'not visible'}",
+    ]
+    if target is group and group["count"] > 1:
+        common = ", ".join(f"{n} x{names.count(n)}" if names.count(n) > 1 else n for n in dict.fromkeys(names))
+        lines.append(f"Made of {group['count']} processes: {common}")
+    if services:
+        lines.append("Windows services inside: " + ", ".join(s["display"] for s in services))
+    lines.append(f"Starts with Windows: {'yes' if _in_startup(target.get('path')) else 'no'}")
+    internet, local = conns
+    lines.append(f"Internet connections: {', '.join(internet[:10])}" + (f" and {len(internet) - 10} more" if len(internet) > 10 else "")
+                 if internet else "Internet connections: none open right now")
+    if local:
+        lines.append(f"Links to other programs on this PC or home network: {local}")
+    lines.append(f"Using: {target['cpu']}% CPU, {round(target['mem'] / 1048576)} MB memory")
+    if target.get("unusual"):
+        lines.append("Noticed: " + " ".join(target["unusual"]))
+    lines.append(f"My process viewer's current description: {target['what']}")
+    return jsonify({"text": "\n".join(lines)})
+
+
+@app.post("/api/copy")
+def api_copy():
+    import win32clipboard
+    text = (request.get_json(force=True) or {}).get("text", "")
+    win32clipboard.OpenClipboard()
+    try:
+        win32clipboard.EmptyClipboard()
+        win32clipboard.SetClipboardText(text, win32clipboard.CF_UNICODETEXT)
+    finally:
+        win32clipboard.CloseClipboard()
+    return jsonify({"ok": True})
+
+
+@app.post("/api/open-ai")
+def api_open_ai():
+    url = AI_SITES.get((request.get_json(force=True) or {}).get("site"))
+    if url:
+        webbrowser.open(url)
+    return jsonify({"ok": bool(url)})
 
 
 @app.post("/api/search-web")
