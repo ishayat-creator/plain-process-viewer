@@ -51,6 +51,24 @@ def _shortcut_target(lnk):
         return "", ""
 
 
+def status(path, found=None):
+    """'on' or 'off' if this program is in the startup list, None if it isn't in the places checked
+    (Run keys and Startup folders; scheduled tasks and services aren't checked)."""
+    if not path:
+        return None
+    hits = [e for e in (entries() if found is None else found) if (e.get("path") or "").lower() == path.lower()]
+    if not hits:
+        return None
+    return "on" if any(e["enabled"] for e in hits) else "off"
+
+
+STATUS_TEXT = {
+    "on": "yes, it's in the startup list and turned on",
+    "off": "it's in the startup list but turned off",
+    None: "not found in the Run keys or Startup folders (scheduled tasks and services weren't checked)",
+}
+
+
 def entries():
     hkcu, hklm = winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE
     out = []

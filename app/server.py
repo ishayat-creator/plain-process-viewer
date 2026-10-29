@@ -3,7 +3,6 @@ import base64
 import ctypes
 import hashlib
 import os
-import re
 import secrets
 import subprocess
 import sys
@@ -18,6 +17,7 @@ from flask import Flask, Response, abort, jsonify, request
 import startup
 import sysinfo
 from enrich import Enricher
+from redact import mask
 from knowledge import GENERIC_TITLES, KINDS, KNOWN, Explainer, classify, folder_label, lookup, made_by, plain_service
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -228,19 +228,7 @@ def api_open_location():
     return jsonify({"ok": True})
 
 
-HOME = os.path.expanduser("~")
-SECRET_ARG = re.compile(r"(?i)((?:key|token|secret|password|passwd|pwd|auth|bearer)[=: ]+)\S+")
-LONG_RANDOM = re.compile(r"\b[A-Za-z0-9_\-]{32,}\b")
 AI_SITES = {"chatgpt": "https://chatgpt.com/", "claude": "https://claude.ai/new", "kimi": "https://www.kimi.com/"}
-
-
-def _mask(text):
-    """Hide your user name and anything that looks like a password or key before it leaves the app."""
-    if not text:
-        return text
-    text = re.sub(re.escape(HOME), "%USERPROFILE%", text, flags=re.I)
-    text = SECRET_ARG.sub(r"\1[hidden]", text)
-    return LONG_RANDOM.sub("[hidden]", text)
 
 
 def _connections(pids):
@@ -260,13 +248,11 @@ def _connections(pids):
     return sorted(internet), local
 
 
-def _in_startup(path):
-    if not path:
-        return False
+def _startup_text(path):
     try:
-        return any((e.get("path") or "").lower() == path.lower() for e in startup.entries())
+        return startup.STATUS_TEXT[startup.status(path)]
     except Exception:
-        return False
+        return "couldn't check"
 
 
 @app.post("/api/ask")
@@ -311,18 +297,18 @@ def api_ask():
         "",
         f"Name shown: {target['title']}",
         f"File: {group['exe'] if target is group else target['name']}",
-        f"Folder: {_mask(target.get('path')) or 'hidden by Windows'}",
+        f"Folder: {target.get('path') or 'hidden by Windows'}",
         f"Made by: {group.get('company') or 'not stated in the file'}",
         f"Signature: {sig}",
         f"Started by: {group.get('started_by')}" if target is group else f"Part of: {group['title']} ({group['exe']})",
-        f"Start command: {_mask(cmd)[:600] or 'not visible'}",
+        f"Start command: {cmd[:600] or 'not visible'}",
     ]
     if target is group and group["count"] > 1:
         common = ", ".join(f"{n} x{names.count(n)}" if names.count(n) > 1 else n for n in dict.fromkeys(names))
         lines.append(f"Made of {group['count']} processes: {common}")
     if services:
         lines.append("Windows services inside: " + ", ".join(s["display"] for s in services))
-    lines.append(f"Starts with Windows: {'yes' if _in_startup(target.get('path')) else 'no'}")
+    lines.append(f"Starts with Windows: {_startup_text(target.get('path'))}")
     internet, local = conns
     lines.append(f"Internet connections: {', '.join(internet[:10])}" + (f" and {len(internet) - 10} more" if len(internet) > 10 else "")
                  if internet else "Internet connections: none open right now")
@@ -332,7 +318,7 @@ def api_ask():
     if target.get("unusual"):
         lines.append("Noticed: " + " ".join(target["unusual"]))
     lines.append(f"My process viewer's current description: {target['what']}")
-    return jsonify({"text": "\n".join(lines)})
+    return jsonify({"text": mask("\n".join(lines))})  # the whole question, not just the command line
 
 
 @app.post("/api/copy")

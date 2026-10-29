@@ -1,6 +1,6 @@
 # Plain Process Viewer
 
-**Know what you're closing before you close it.** Plain Process Viewer sorts everything running on Windows into apps you recognise, explains each part in everyday words, and tells you what happens if you end it.
+**Your apps, and every helper they start, explained in plain words.** Plain Process Viewer sorts everything running on Windows into apps you recognise, names each background helper by the job it does (down to which script a `python.exe` is running), and tells you what's known about ending it.
 
 ![Plain Process Viewer showing apps grouped by kind, with plain names, file names, CPU and memory, and what happens if you close each one](docs/processes-light.png)
 
@@ -22,17 +22,17 @@ That matters more now that so many of us run each other's half-finished tools, A
 
 **Names everything, in everyday words.** Every program and helper gets the name a person would use and one sentence about what it does for you, with its real file name in small grey text beside it. `dwm.exe` becomes *Screen drawer: Draws your windows, shadows, see-through effects and animations on screen.* `BITS` becomes *Background downloads: Downloads updates slowly using spare bandwidth, so your internet stays fast.*
 
-**Groups the clutter into apps.** About 450 processes become roughly 110 rows. Each app opens to show its parts, and each part says what it's for: "Firefox: Tabs", "Claude: Network helper", "Python · Runs reddit_rss.py", "Gradle build helper".
+**Groups the clutter into apps.** About 450 processes become roughly 110 rows. Each app opens to show its parts, and each part says what it's for: "Firefox: Tabs", "Claude: Network helper", "Python · Runs reddit_rss.py", "Gradle build helper". Every copy of Python, Node.js, PowerShell and the like that runs on its own gets its own row, named by its script or project, so ending one never ends the others. Programs that share a file name but come from different makers stay apart too.
 
-**Tells you what happens if you close it.** Every app is marked *Safe to close*, *Close with care*, *Don't close*, or *Windows needs it*, with a sentence on what you'd lose. Ending the parts Windows can't live without is blocked.
+**Tells you what happens if you close it.** Every app is marked *Safe to close*, *Close with care*, *Don't close*, or *Windows needs it*, with a sentence on what you'd lose. Programs that aren't on the list are marked *Impact unknown* instead of being guessed at. End task stops a program at once, without letting it save (closing its window is gentler), and ending the parts Windows can't live without is blocked.
 
 **Filters by kind and by risk of closing.** Chips along the top filter by Browsers, AI tools, Chat, Work, Games and media, Developer tools, Drivers and hardware, Windows. A second row filters by what happens if you close it, so "show me everything that's safe to close" is one click. **Not on our list** shows everything the built-in list doesn't know yet, named from the file itself.
 
-**Shows who started what.** Every app shows what launched it ("You, from the Start menu", "Windows, as a background service", or another app), who made it, whether it's signed, and where it lives. A program you open from your browser's downloads gets its own row, marked as opened from the browser, instead of hiding among the browser's parts.
+**Shows who started what, and only what it can tell.** Every app shows what launched it ("Windows Explorer: usually you, or the startup list at sign-in", "Windows, as a background service", or another app), its maker, whether it's signed, and its folder. A program started by your browser, such as a download you opened, gets its own row instead of hiding among the browser's parts.
 
 **Points out unusual things, without crying wolf.** Notepad or Calculator starting other programs, Office starting PowerShell, a Windows name running outside the Windows folder, a name one letter off a Windows part, a program running from Downloads or Temp. These are shown as notes to check, never as verdicts.
 
-**Ask an AI when you're still not sure.** One button builds a ready-to-paste question with everything useful (name, folder, maker, signature, what started it, its start command, its internet connections) and copies it. Paste it into ChatGPT, Claude or any chat. Your user name and anything that looks like a password or key are hidden first.
+**Ask an AI when you're still not sure.** One button builds a ready-to-paste question with everything useful (name, folder, maker, signature, what started it, its start command, whether it's in your startup list, its internet connections) and copies it. Paste it into ChatGPT, Claude or any chat. Your user name and common secrets (passwords, keys, tokens, sign-ins inside web addresses, email addresses) are hidden first, and you can read and edit the question before it's copied, because no filter catches everything.
 
 **Startup apps and Services, explained the same way.** See what starts when you sign in, and what each of Windows' background services actually does.
 
@@ -111,6 +111,14 @@ uv pip install --python .venv\Scripts\python.exe pyinstaller
 
 This makes `dist\PlainProcessViewer.exe` (about 14 MB), with Python, the plain-words list and the interface inside.
 
+### Run the tests
+
+```
+.venv\Scripts\python.exe -m unittest discover tests
+```
+
+They cover grouping (same-named programs from different makers, separate script copies), close labels, the secret hiding, and the startup-list wording, using made-up processes so they run the same on any PC.
+
 ## Project layout
 
 | File | Job |
@@ -122,6 +130,8 @@ This makes `dist\PlainProcessViewer.exe` (about 14 MB), with Python, the plain-w
 | `app/enrich.py`, `enrich.ps1` | Signatures and icons, checked once per file and cached in `%LOCALAPPDATA%\PlainProcessViewer`. |
 | `app/startup.py` | Startup apps from the Run keys and Startup folders, with their on/off state. |
 | `app/server.py` | The local server: process data, End task (with checks), Ask an AI, Startup and Services. |
+| `app/redact.py` | Hides your user name and common secrets in the Ask-an-AI question. |
+| `tests/` | Checks for grouping, close labels, secret hiding and startup wording. |
 | `app/static/` | The interface. |
 | `main.py` | Opens the app window. |
 | `build.ps1`, `packaging/version.txt` | Build the single .exe and set the file details Windows shows for it. |

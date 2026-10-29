@@ -1,4 +1,5 @@
 """Turns raw process data into named, grouped, explained apps."""
+import hashlib
 import json
 import os
 import re
@@ -73,13 +74,21 @@ KIND_RULES = [
 ]
 KIND_PATTERNS = [(kind, re.compile("|".join(r"\b" + re.escape(w.strip()) + r"\b" for w in words))) for kind, words in KIND_RULES]
 
-DEFAULT_CLOSE = {"windows": "keep", "hardware": "care", "dev": "care"}
 DEFAULT_NOTE = {
     "safe": "It closes. Unsaved work in it may be lost.",
     "care": "Something else may depend on it. Save your work first.",
+    "unknown": "It isn't on our list, so we can't say what depends on it. Save your work first.",
     "keep": "Something in Windows, or a device, may stop working until you restart.",
     "critical": "Ending it would bring Windows down, so it's blocked.",
 }
+# How serious each label is. "unknown" never hides a more serious known label, and never lowers a known one.
+SEVERITY = {"safe": 0, "care": 1, "unknown": 1, "keep": 2, "critical": 3}
+
+# Programs that run someone else's code (a script, a project, an add-on). Each copy is its own app,
+# so ending one never ends the others.
+PER_COPY = {"node.exe", "python.exe", "pythonw.exe", "py.exe", "pyw.exe", "java.exe", "javaw.exe", "dotnet.exe", "deno.exe",
+            "bun.exe", "ruby.exe", "php.exe", "perl.exe", "cmd.exe", "powershell.exe", "pwsh.exe", "bash.exe", "wsl.exe",
+            "wscript.exe", "cscript.exe", "mshta.exe", "rundll32.exe", "dllhost.exe", "uv.exe", "uvx.exe", "msedgewebview2.exe"}
 
 # Parents we never climb past when deciding which app a process belongs to.
 BOUNDARY = {"system", "registry", "smss.exe", "csrss.exe", "wininit.exe", "winlogon.exe", "services.exe", "svchost.exe",
@@ -87,7 +96,8 @@ BOUNDARY = {"system", "registry", "smss.exe", "csrss.exe", "wininit.exe", "winlo
             "runtimebroker.exe", "applicationframehost.exe"}
 
 STARTED_BY = {
-    "explorer.exe": "You, from the desktop, Start menu or taskbar",
+    # Explorer also starts the startup list at sign-in, so its being the parent doesn't prove you clicked anything.
+    "explorer.exe": "Windows Explorer: usually you opened it (desktop, Start menu, taskbar), or it starts at sign-in",
     "services.exe": "Windows, as a background service",
     "svchost.exe": "Windows, through one of its services",
     "wininit.exe": "Windows, at start-up", "winlogon.exe": "Windows, at sign-in", "smss.exe": "Windows, at start-up",
@@ -306,6 +316,39 @@ def in_windows_dir(path):
     return bool(path) and path.lower().startswith(WINDIR)
 
 
+def install_root(path):
+    """The folder an app is installed in (e.g. C:\\Program Files\\Vendor), so same-named programs from different makers stay apart."""
+    if not path:
+        return None
+    low = os.path.normpath(path).lower()
+    if in_windows_dir(low):
+        return WINDIR
+    parts = low.split("\\")
+    for anchor in ("windowsapps", "program files", "program files (x86)", "programdata", "appdata"):
+        if anchor in parts:
+            i = parts.index(anchor) + (2 if anchor == "appdata" else 1)  # AppData\Local\<app>, Program Files\<app>
+            if i < len(parts) - 1 and parts[i] in ("programs", "common files"):
+                i += 1
+            return "\\".join(parts[:i + 1])
+    return os.path.dirname(low)
+
+
+def role_title(d):
+    """A part's name with its job: "Firefox: Tabs", or "Python · Runs bot.py" for a script."""
+    role = d["role"]
+    return f"{d['title']}: {role}" if role[0].isupper() and not role.startswith(("Runs", "Starts")) else f"{d['title']} · {role}"
+
+
+def app_close(main, members):
+    """An app's close label: its main program's, unless one of its parts is something Windows or a device relies on.
+    (A helper's own "care" note is about its host app, which you're closing anyway, so it doesn't count.)"""
+    close, note, who = main["close"], main["note"], main
+    for m in members:
+        if m["close"] in ("keep", "critical") and SEVERITY[m["close"]] > SEVERITY[close]:
+            close, note, who = m["close"], m["note"], m
+    return close, (note if who is main else f"{who['title']}: {note}")
+
+
 def classify(lname, path, info):
     known = lookup(lname)
     if known and known.get("kind"):
@@ -421,7 +464,8 @@ class Explainer:
 
         rich = self.enricher.get(path) if path else None
         kind = classify(lname, path, info)
-        close = (known or {}).get("close") or DEFAULT_CLOSE.get(kind, "safe")
+        # Not on our list: we don't know what closing it does, so say so (Windows-folder programs stay cautious).
+        close = (known or {}).get("close") or ("keep" if in_windows_dir(path) else "unknown")
         role = part_role(lname, self.cmdlines.get(p["pid"]))
         if lname == "plainprocessviewer.exe":  # the one-file .exe is a small starter that runs a second copy of itself
             par = self.parent_of(p)
@@ -498,16 +542,21 @@ class Explainer:
                 cur = par["pid"]
             return cur
 
+        def app_key(pid):
+            """Which app a top-level process belongs to: the same program file, not just the same file name."""
+            d = described[pid]
+            if d["lname"] in PER_COPY:
+                return f"{d['lname']}#{pid}"
+            return (d["path"] or d["lname"]).lower()
+
         groups = {}
         for pid in live:
-            r = root_of(pid)
-            if r != pid:
-                continue
-            gid = described[pid]["lname"]
-            groups.setdefault(gid, []).append(pid)
+            if root_of(pid) == pid:
+                groups.setdefault(app_key(pid), []).append(pid)
 
         out = []
-        for gid, roots in groups.items():
+        for key, roots in groups.items():
+            roots.sort(key=lambda r: live[r]["create"])
             first = described[roots[0]]
             members = []
 
@@ -523,29 +572,33 @@ class Explainer:
                 kids = [c for c in children.get(pid, []) if c in described and root_of(c) != c]
                 node = {k: d[k] for k in ("pid", "name", "title", "what", "cpu", "mem", "unusual", "kind", "signature", "signer", "path", "folder", "source", "services", "icon", "listed")}
                 if d["role"]:
-                    node["title"] = f"{d['title']}: {d['role']}" if d["role"][0].isupper() and not d["role"].startswith(("Runs", "Starts")) else f"{d['title']} · {d['role']}"
-                    node["what"] = d["role_what"]
+                    node["title"], node["what"] = role_title(d), d["role_what"]
                 node["children"] = [tree(c, depth + 1) for c in sorted(kids, key=lambda c: described[c]["title"].lower())]
                 return node
 
-            parts = [tree(r, 0) for r in sorted(roots, key=lambda r: live[r]["create"])]
+            parts = [tree(r, 0) for r in roots]
             starter = parents.get(roots[0])
             if starter is None:
-                started_by = "Windows, at start-up" if first["lname"] in ("system", "registry", "secure system", "memory compression") else "A program that has already closed"
+                started_by = "Windows, at start-up" if first["lname"] in ("system", "registry", "secure system", "memory compression") else "A program that has since closed"
             else:
                 started_by = STARTED_BY.get(starter["name"].lower()) or described.get(starter["pid"], {}).get("title") or starter["name"]
                 if opened_from_browser(roots[0], starter):
-                    started_by += " (you opened it from there: a download or a link)"
+                    started_by += " (often a download you opened, or a link that opens an app)"
 
-            is_services = gid == "svchost.exe"
-            title = "Windows services" if is_services else first["title"]
-            what = ("Windows' built-in background helpers: Wi-Fi, sound, updates, printing and more. Open it to see each one."
-                    if is_services else first["what"])
+            per_copy = first["lname"] in PER_COPY
+            title, what = first["title"], first["what"]
+            if first["lname"] == "svchost.exe":
+                title = "Windows services"
+                what = "Windows' built-in background helpers: Wi-Fi, sound, updates, printing and more. Open it to see each one."
+            elif per_copy and first["role"]:  # say which script or project this copy runs
+                title, what = role_title(first), first["role_what"]
+            close, note = app_close(first, members)
             notes = list(dict.fromkeys(n for m in members for n in m["app_notes"]))
             icon = next((m["icon"] for m in members if m["icon"] and m["lname"] == first["lname"]), None)
             out.append({
-                "id": gid, "title": title, "what": what, "kind": first["kind"], "close": first["close"],
-                "note": first["note"], "cpu": round(sum(m["cpu"] for m in members), 1),
+                "id": "a" + hashlib.sha1(key.encode("utf-8")).hexdigest()[:12], "title": title, "what": what,
+                "kind": first["kind"], "close": close, "note": note, "per_copy": per_copy, "root": install_root(first["path"]),
+                "cpu": round(sum(m["cpu"] for m in members), 1),
                 "mem": sum(m["mem"] for m in members), "count": len(members), "icon": icon,
                 "path": first["path"], "folder": first["folder"], "company": first["company"],
                 "signer": first["signer"], "signature": first["signature"], "source": first["source"],
@@ -554,10 +607,11 @@ class Explainer:
                 "pids": [m["pid"] for m in members], "parts": parts, "exe": first["name"],
             })
 
-        # One row per app: helpers with the same name and kind (e.g. a service and its tray part) merge.
+        # One row per app: an app's separate programs with the same name (e.g. a service and its tray part) merge,
+        # but only when they're installed in the same place. Same-named programs from different makers stay apart.
         merged = {}
         for g in out:
-            key = (g["title"].lower(), g["kind"])
+            key = g["id"] if g["per_copy"] else (g["title"].lower(), g["kind"], g["root"])
             m = merged.get(key)
             if m is None:
                 merged[key] = g
@@ -570,4 +624,17 @@ class Explainer:
             m["unusual"] = list(dict.fromkeys(m["unusual"] + g["unusual"]))
             m["unlisted"] += g["unlisted"]
             m["icon"] = m["icon"] or g["icon"]
+            if g["close"] != "unknown" and SEVERITY[g["close"]] > SEVERITY[m["close"]]:
+                m["close"], m["note"] = g["close"], g["note"]
+        # Separate copies that can't be told apart by name are numbered, oldest first; their start commands differ.
+        copies = {}
+        for g in merged.values():
+            if g["per_copy"]:
+                copies.setdefault(g["title"], []).append(g)
+        for same in copies.values():
+            for i, g in enumerate(same, 1):
+                if len(same) > 1:
+                    g["title"] += f" (copy {i} of {len(same)})"
+        for g in merged.values():
+            del g["per_copy"], g["root"]
         return list(merged.values())

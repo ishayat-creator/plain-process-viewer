@@ -124,6 +124,7 @@ h1 { font: 600 20px/1.2 var(--font-display); margin: 0; }
 .c-safe { --kbg: var(--safe-bg); --kfg: var(--safe-fg); }
 .c-care { --kbg: var(--care-bg); --kfg: var(--care-fg); }
 .c-keep, .c-critical { --kbg: var(--keep-bg); --kfg: var(--keep-fg); }
+.c-unknown { --kbg: var(--line-soft); --kfg: var(--ink); }
 .raw { font: 11.5px/1 var(--mono); color: var(--faint); font-weight: 400; flex: none; white-space: nowrap; }
 .svc-list { display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
 .svc-list div { display: flex; flex-direction: column; gap: 2px; }
@@ -184,6 +185,7 @@ button.th:hover { background: var(--hover); }
 .pill.care { background: var(--care-bg); color: var(--care-fg); }
 .pill.keep, .pill.critical { background: var(--keep-bg); color: var(--keep-fg); }
 .pill.neutral { background: var(--line-soft); color: var(--muted); }
+.pill.unknown { background: var(--line-soft); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
 .flag { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 500; padding: 1px 7px; border-radius: 99px; background: var(--note-bg); color: var(--note-fg); border: 1px solid var(--note-line); flex: none; }
 .flag svg { width: 11px; height: 11px; }
 

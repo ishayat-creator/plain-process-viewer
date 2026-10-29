@@ -8,7 +8,7 @@ const KIND_LABEL = {
   browser: "Browser", ai: "AI tool", chat: "Chat and calls", work: "Work and everyday", media: "Games and media",
   dev: "Developer tool", other: "Other app", hardware: "Driver or hardware", windows: "Part of Windows",
 };
-const CLOSE_LABEL = { safe: "Safe to close", care: "Close with care", keep: "Don't close", critical: "Windows needs it" };
+const CLOSE_LABEL = { safe: "Safe to close", care: "Close with care", unknown: "Impact unknown", keep: "Don't close", critical: "Windows needs it" };
 
 const state = {
   view: "processes", data: null, kind: null, close: null, unlisted: false, query: "", sort: { key: "name", dir: 1 },
@@ -143,7 +143,7 @@ function renderProcesses() {
     d.kinds.filter((k) => counts[k.id]).map((k) =>
       `<button class="chip k-${k.id}${state.kind === k.id ? " on" : ""}" data-kind="${k.id}">${esc(k.label)} <b>${counts[k.id]}</b></button>`).join("");
   $("#closeChips").innerHTML = `<span class="chip-label">If you close it</span>` +
-    ["safe", "care", "keep", "critical"].filter((c) => closeCounts[c] || state.close === c).map((c) =>
+    ["safe", "care", "unknown", "keep", "critical"].filter((c) => closeCounts[c] || state.close === c).map((c) =>
       `<button class="chip c-${c}${state.close === c ? " on" : ""}" data-close="${c}">${c === "critical" ? icon("lock") : ""}${CLOSE_LABEL[c]} <b>${closeCounts[c] || 0}</b></button>`).join("") +
     (unlistedCount || state.unlisted
       ? `<span class="chip-gap"></span><button class="chip unlisted${state.unlisted ? " on" : ""}" data-unlisted="1" title="Apps with a part that isn't on the built-in plain-words list yet. Those parts are named from the file itself.">Not on our list <b>${unlistedCount}</b></button>`
@@ -384,8 +384,8 @@ async function askAI() {
     return toast("That program has closed, so there's nothing to ask about.");
   }
   $("#modalTitle").textContent = "Ask an AI about this";
-  $("#modalBody").innerHTML = `<p>This question is ready to paste into any AI chat. It's exactly what gets copied; your user name and anything that looks like a password or key are hidden.</p>
-    <textarea id="askText" class="ask-text mono" readonly>${esc(text)}</textarea>`;
+  $("#modalBody").innerHTML = `<p>This question is ready to paste into any AI chat. Your user name and common secrets (passwords, keys, tokens, sign-ins inside web addresses, email addresses) are hidden, but no filter catches everything: <b>read it before you share it</b>, and edit or delete anything you'd rather keep private. What's in the box is exactly what gets copied.</p>
+    <textarea id="askText" class="ask-text mono" spellcheck="false" aria-label="Question to copy">${esc(text)}</textarea>`;
   $("#modalActions").innerHTML = `<div class="ask-sites"><span>Open:</span>
       <button class="btn small" data-site="chatgpt">ChatGPT</button><button class="btn small" data-site="claude">Claude</button><button class="btn small" data-site="kimi">Kimi</button></div>
     <button class="btn" data-ask="close">Close</button><button class="btn primary" data-ask="copy">${icon("copy")}Copy question</button>`;
@@ -394,12 +394,13 @@ async function askAI() {
   $("#modalActions").onclick = async (e) => {
     const b = e.target.closest("button");
     if (!b) return;
+    const edited = $("#askText").value;  // copy what's in the box, including your edits
     if (b.dataset.site) {
-      await copyText(text, true);
+      await copyText(edited, true);
       api("/api/open-ai", { site: b.dataset.site });
       return toast("Question copied. Paste it into the chat with Ctrl+V.");
     }
-    if (b.dataset.ask === "copy") return copyText(text);
+    if (b.dataset.ask === "copy") return copyText(edited);
     $("#modal").hidden = true;
   };
   $("#modalActions [data-ask=copy]").focus();
@@ -441,9 +442,10 @@ function confirmEnd() {
     return;
   }
   const lead = sel.close === "keep" ? `<p><b>Windows or one of your devices relies on this.</b></p>` : "";
-  modal(`End ${sel.title}?`, `${lead}<p>${esc(sel.note)}</p>${parts}`, [
+  const forced = `<p class="lead">End task stops it at once, without letting it save or close tidily. If it has a window, closing that is gentler.</p>`;
+  modal(`End ${sel.title}?`, `${lead}<p>${esc(sel.note)}</p>${parts}${forced}`, [
     { label: "Cancel" },
-    { label: sel.close === "keep" ? "End anyway" : "End task", cls: "danger solid", run: () => doEnd(sel) },
+    { label: sel.close === "keep" || sel.close === "unknown" ? "End anyway" : "End task", cls: "danger solid", run: () => doEnd(sel) },
   ]);
 }
 
@@ -667,11 +669,12 @@ $("#startupRefresh").addEventListener("click", loadStartup);
 $("#startupSettings").addEventListener("click", () => api("/api/open-startup-settings", {}));
 
 paintThemeIcon();
-// ?select=<app id>&expand=1 opens an app's details on load (used for README screenshots).
+// ?select=<file name or app name>&expand=1 opens an app's details on load (used for README screenshots).
 const params = new URLSearchParams(location.search);
 refresh(true).then(() => {
-  const id = params.get("select");
-  if (!id || !findGroup(id)) return;
+  const want = (params.get("select") || "").toLowerCase();
+  const id = want && state.data.groups.find((g) => g.id === want || g.exe.toLowerCase() === want || g.title.toLowerCase() === want)?.id;
+  if (!id) return;
   if (params.get("expand")) state.expanded.add(id);
   renderProcesses();
   select({ type: "group", id });
