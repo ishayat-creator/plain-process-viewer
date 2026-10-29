@@ -1,6 +1,6 @@
 # Plain Process Viewer
 
-**Task Manager, in plain words.** Every process on your Windows PC gets a real name, a one-line explanation, who started it, and what happens if you close it.
+**Know what you're closing before you close it.** Plain Process Viewer sorts everything running on Windows into apps you recognise, explains each part in everyday words, and tells you what happens if you end it.
 
 ![Plain Process Viewer showing apps grouped by kind, with plain names, file names, CPU and memory, and what happens if you close each one](docs/processes-light.png)
 
@@ -10,9 +10,9 @@
 
 I have a cybersecurity background, and I still couldn't read Task Manager.
 
-Open it on a normal PC and you get a wall of names: 98 lines that all say `svchost.exe`, 30 copies of `firefox.exe`, `esrv.exe` with no description at all, `jhi_service.exe` described only as "Intel(R) Dynamic Application Loader Host Interface". When one of them is eating memory, or just looks odd, closing it is guesswork. You end it and hope nothing breaks, or you search each name, one at a time.
+Open it on a normal PC and you get a wall of names: 98 lines that all say `svchost.exe`, 30 copies of `firefox.exe`, `esrv.exe` with no description at all, `jhi_service.exe` described only as "Intel(R) Dynamic Application Loader Host Interface". When one of them is eating memory, or just looks odd, closing it is guesswork. You end it and hope nothing breaks.
 
-The tools that do show more detail (Process Explorer, System Informer) are built for analysts. They're powerful, but they answer in hashes, handles and virus scores, not in sentences.
+Process Explorer and System Informer show far more detail, but they're made for analysts: handles, hashes and virus scores rather than sentences.
 
 I wanted the opposite: open it, read it, understand it. **What is this, why is it running, and is it safe to close?** In words anyone can follow.
 
@@ -20,7 +20,7 @@ That matters more now that so many of us run each other's half-finished tools, A
 
 ## What it does
 
-**Names everything, in everyday words.** Each process gets a plain name and one sentence about what it does for you, with its real file name in small grey text beside it. `dwm.exe` becomes *Screen drawer: Draws your windows, shadows, see-through effects and animations on screen.* `BITS` becomes *Background downloads: Downloads updates slowly in the background so your internet stays fast.*
+**Names everything, in everyday words.** Every program and helper gets the name a person would use and one sentence about what it does for you, with its real file name in small grey text beside it. `dwm.exe` becomes *Screen drawer: Draws your windows, shadows, see-through effects and animations on screen.* `BITS` becomes *Background downloads: Downloads updates slowly using spare bandwidth, so your internet stays fast.*
 
 **Groups the clutter into apps.** About 450 processes become roughly 110 rows. Each app opens to show its parts, and each part says what it's for: "Firefox: Tabs", "Claude: Network helper", "Python · Runs reddit_rss.py", "Gradle build helper".
 
@@ -36,13 +36,13 @@ That matters more now that so many of us run each other's half-finished tools, A
 
 **Startup apps and Services, explained the same way.** See what starts when you sign in, and what each of Windows' background services actually does.
 
-![A program's parts, each named by its job, with the details panel showing who started it, who made it and where it lives](docs/parts-and-details.png)
+![A program's parts, each named by its job, with the details panel showing what started it, its maker and its folder](docs/parts-and-details.png)
 
 ![Dark mode: Windows' background services, each with an everyday name and explanation](docs/services-dark.png)
 
 ## What it isn't
 
-**It's not an antivirus**, and it never says something is safe. A program can have a perfect name and still be harmful, and malware can copy real names. Plain Process Viewer explains what's running; keep Microsoft Defender (or your antivirus) on for protection.
+**It doesn't judge safety.** It never calls a program safe or harmful: a familiar name proves nothing, because malware can borrow real names. Plain Process Viewer explains what's running; Microsoft Defender (or whichever virus protection you use) stays your protection.
 
 ## How it works
 
@@ -77,9 +77,9 @@ Anything not on the list still gets a name from the file itself, and the Ask-an-
 
 ## Download
 
-Get **PlainProcessViewer.exe** from the [latest release](../../releases/latest) and double-click it. There's nothing to install and you don't need Python. It needs 64-bit Windows 10 or 11 and opens in about two seconds. On small or zoomed-in screens (tablets, foldables) it opens full-screen.
+Download **PlainProcessViewer.exe** from the [Releases page](../../releases/latest) and double-click it. There's nothing to install and you don't need Python. It needs 64-bit Windows 10 or 11 and opens in about two seconds. On small or zoomed-in screens (tablets, foldables) it opens full-screen.
 
-**Windows will probably warn you the first time.** The .exe isn't code-signed yet, so SmartScreen may say *Windows protected your PC*. Click **More info**, then **Run anyway**. Some antivirus tools also wrongly flag apps packaged from Python. Microsoft Defender scanned this build and found no threats, and if you'd rather not trust a download, you can run it from the source below.
+**Windows will probably warn you the first time.** The .exe is unsigned for now (a signing certificate is a yearly cost), which is why SmartScreen may say *Windows protected your PC*; choose **More info**, then **Run anyway**. Python-packaged apps also get mistaken for threats by some virus scanners now and then. Microsoft Defender found nothing in this build, and if you'd rather not trust a download, you can run it from the source below.
 
 Each time it starts, it unpacks itself into a temporary folder and removes that folder when you close it. That's why Plain Process Viewer lists itself as two parts, *Starter* and *App*.
 
@@ -151,4 +151,4 @@ Each entry is one line of JSON, keyed by the lowercase file name:
 
 ## Licence
 
-[MIT](LICENSE): use it, change it and share it, including in your own projects. The .exe also packs Python and other open-source parts (Flask, psutil, pywin32, pywebview, Microsoft's WebView2 files and more); their licences are in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt).
+Released under the [MIT licence](LICENSE): you're free to use, change and share it, including in your own projects. The .exe also packs Python and other open-source parts (Flask, psutil, pywin32, pywebview, Microsoft's WebView2 files and more); their licences are in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt).

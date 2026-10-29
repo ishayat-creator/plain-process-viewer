@@ -77,8 +77,8 @@ DEFAULT_CLOSE = {"windows": "keep", "hardware": "care", "dev": "care"}
 DEFAULT_NOTE = {
     "safe": "It closes. Unsaved work in it may be lost.",
     "care": "Something else may depend on it. Save your work first.",
-    "keep": "Part of Windows or a device may stop working until you restart.",
-    "critical": "Windows can't run without it. Ending it is blocked.",
+    "keep": "Something in Windows, or a device, may stop working until you restart.",
+    "critical": "Ending it would bring Windows down, so it's blocked.",
 }
 
 # Parents we never climb past when deciding which app a process belongs to.
@@ -146,14 +146,14 @@ JAVA_ROLES = [
     ("org.jetbrains.kotlin.daemon", "Kotlin compiler helper", "Keeps the Kotlin compiler loaded so builds are faster."),
     ("org.codehaus.plexus.classworlds", "Maven build", "Building a Java project with Maven."),
     ("org.eclipse.jdt.ls", "Java code helper", "Gives your editor autocomplete and error checking for Java."),
-    ("org.elasticsearch", "Elasticsearch", "Search database running on your PC."),
-    ("org.apache.catalina", "Tomcat web server", "Java web server running on your PC."),
-    ("kafka.Kafka", "Kafka", "Message system running on your PC."),
-    ("org.apache.zookeeper", "ZooKeeper", "Coordination service running on your PC."),
-    ("org.neo4j", "Neo4j database", "Graph database running on your PC."),
+    ("org.elasticsearch", "Elasticsearch", "A search database on this computer."),
+    ("org.apache.catalina", "Tomcat web server", "A Java web server on this computer."),
+    ("kafka.Kafka", "Kafka", "Passes messages between programs, on this computer."),
+    ("org.apache.zookeeper", "ZooKeeper", "Keeps a group of servers in step, on this computer."),
+    ("org.neo4j", "Neo4j database", "A graph database on this computer."),
     ("net.minecraft", "Minecraft", "The Minecraft game."),
     ("sonarlint", "SonarLint", "Checks your code for problems in the editor."),
-    ("jenkins", "Jenkins", "Build server running on your PC."),
+    ("jenkins", "Jenkins", "A build server on this computer."),
     ("burpsuite", "Burp Suite", "Web security testing tool."),
     ("com.charlesproxy", "Charles Proxy", "Records web traffic for developers."),
 ]
@@ -217,7 +217,7 @@ def part_role(lname, args):
         if "-contentproc" in rest:
             last = rest[-1].lower() if rest else ""
             return FIREFOX_TYPES.get(last, ("Helper", "A helper part of Firefox."))
-        return ("Main window", "The main Firefox program. Closing it closes all its parts.")
+        return ("Main window", "The main Firefox program. Ending it ends every tab and helper too.")
     if lname in ("java.exe", "javaw.exe"):
         for needle, label, what in JAVA_ROLES:
             if needle.lower() in joined.lower():

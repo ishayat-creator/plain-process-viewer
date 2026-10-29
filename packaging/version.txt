@@ -20,7 +20,7 @@ VSVersionInfo(
          StringStruct('OriginalFilename', 'PlainProcessViewer.exe'),
          StringStruct('ProductName', 'Plain Process Viewer'),
          StringStruct('ProductVersion', '0.1.1'),
-         StringStruct('Comments', 'Task Manager, in plain words. https://github.com/ishayat-creator/plain-process-viewer')])
+         StringStruct('Comments', 'Know what you''re closing before you close it. https://github.com/ishayat-creator/plain-process-viewer')])
     ]),
     VarFileInfo([VarStruct('Translation', [1033, 1200])])
   ]

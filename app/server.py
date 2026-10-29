@@ -307,7 +307,7 @@ def api_ask():
     lines = [
         "I'm looking at a program running on my Windows PC. In plain everyday words (no jargon), please tell me:",
         "what it is, who makes it, why it might be running, and what happens if I close it.",
-        "If you don't recognise it, say so instead of guessing.",
+        "If you can't tell what it is, say that rather than guessing.",
         "",
         f"Name shown: {target['title']}",
         f"File: {group['exe'] if target is group else target['name']}",

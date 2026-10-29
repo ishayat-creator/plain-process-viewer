@@ -440,7 +440,7 @@ function confirmEnd() {
     modal(`Windows needs ${sel.title}`, `<p>${esc(sel.note)}</p>`, [{ label: "OK", cls: "primary" }]);
     return;
   }
-  const lead = sel.close === "keep" ? `<p><b>This is part of Windows or a device.</b></p>` : "";
+  const lead = sel.close === "keep" ? `<p><b>Windows or one of your devices relies on this.</b></p>` : "";
   modal(`End ${sel.title}?`, `${lead}<p>${esc(sel.note)}</p>${parts}`, [
     { label: "Cancel" },
     { label: sel.close === "keep" ? "End anyway" : "End task", cls: "danger solid", run: () => doEnd(sel) },
